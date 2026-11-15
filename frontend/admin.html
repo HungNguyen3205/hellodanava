@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Quản trị | Hello DANAVA</title>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/admin.js"></script>
+</head>
+<body>
+<header class="top"><div class="wrap nav"><a class="brand" href="/"><span class="mark">D</span>DANAVA <b>Studio</b></a>
+<a href="/">Xem bảng giá ↗</a></div></header>
+<main class="wrap admin">
+<div class="notice" id="message" role="status" hidden></div>
+<section id="signin" class="panel login" hidden>
+<p class="eyebrow">DANAVA STUDIO</p><h1>Đăng nhập</h1>
+<form id="login"><label>Email<input type="email" name="email" autocomplete="username" maxlength="160" required></label>
+<label>Mật khẩu<input type="password" name="password" autocomplete="current-password" maxlength="128" required></label>
+<button class="primary">Đăng nhập</button></form>
+</section>
+<section id="workspace" hidden>
+<div class="section-bar"><div><p class="eyebrow" id="identity"></p><h1>Quản trị báo giá</h1></div>
+<button type="button" id="logout" class="small-button">Đăng xuất</button></div>
+<nav id="tabs" class="admin-tabs" aria-label="Mục quản trị"></nav>
+<div id="content"></div>
+</section>
+</main>
+</body></html>

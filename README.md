@@ -1,0 +1,39 @@
+# Hello DANAVA
+
+Website báo giá DANAVA Studio và cổng quản trị bán hàng nội bộ.
+
+| Thư mục | Vai trò |
+| --- | --- |
+| `frontend/` | Giao diện báo giá, bảng so sánh, biểu mẫu khách hàng và dashboard nội bộ. HTML, CSS và JavaScript modules. |
+| `backend/` | HTTP API Node.js, đăng nhập và phân quyền, tính giá trên máy chủ, quản lý cấu hình, lưu yêu cầu và thống kê bằng SQLite. |
+
+## Chạy trên máy phát triển
+
+Cần Node.js 24 trở lên. Ứng dụng dùng thư viện tích hợp của Node.js.
+
+```bash
+cp .env.example .env
+# Đặt ADMIN_EMAIL và ADMIN_PASSWORD trong .env. Mật khẩu tối thiểu 12 ký tự.
+npm start
+```
+
+- Báo giá tại `http://localhost:3000/`.
+- Admin tại `http://localhost:3000/admin`.
+- `npm run check` kiểm tra cú pháp JavaScript chính.
+
+Lần đầu khởi động, hệ thống tạo tài khoản quản trị và lưu dữ liệu trong `DATA_DIR/studio.sqlite`. Tài khoản đã tạo đổi mật khẩu trong mục **Tài khoản**. Biến môi trường dùng để khởi tạo tài khoản lần đầu.
+
+## Vận hành
+
+1. Trong **Gói & module**, chỉnh giá theo kỳ hạn và tick tính năng theo gói. Có thể chọn mua thêm, liên hệ hoặc ẩn. **Xem trước** kiểm tra bản nháp. **Xuất bản** cập nhật trang công khai.
+2. Trong **Link nhân viên**, tạo tài khoản và cấp link theo kênh. Nhân viên đăng nhập để sao chép hoặc chia sẻ link và xem các yêu cầu được gắn với mình.
+3. Trong **Tổng quan**, xem truy cập, khách ước tính, tương tác và yêu cầu theo ngày, nhân viên, kênh và gói.
+4. Trong **Yêu cầu báo giá**, mở chi tiết dự toán và cập nhật trạng thái tư vấn. Mỗi yêu cầu giữ giá tại thời điểm gửi.
+
+Giá mẫu 12 tháng theo ảnh tham chiếu. Kỳ hạn 6 và 24 tháng của các gói trả phí hiện **Liên hệ** cho tới khi nhập giá. Xác nhận giá và quyền lợi trước khi đưa ra công khai.
+
+Nguồn được ghi nhận theo kênh được gắn trên link. Link chuyển tiếp vẫn mang cùng nguồn. Khách truy cập được ước tính bằng cookie trình duyệt. Số thao tác sao chép và chia sẻ chỉ ghi nhận trong cổng nội bộ.
+
+## Chạy tại hellodanava.vn
+
+Chạy tiến trình Node.js trên máy chủ có đĩa lưu trữ bền vững. Đặt HTTPS ở reverse proxy, trỏ DNS về máy chủ và đặt `SECURE_COOKIES=1` trong môi trường chạy thật. Giữ ứng dụng và API cùng tên miền. Đặt `HOST=127.0.0.1` khi proxy và ứng dụng chạy cùng máy. Sao lưu SQLite bằng công cụ hỗ trợ sao lưu cơ sở dữ liệu đang hoạt động, hoặc dừng tiến trình trước khi sao chép thư mục dữ liệu. Cấu hình giới hạn lưu lượng tại reverse proxy theo lưu lượng thực tế.

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="So sánh gói DANAVA Studio, chọn tính năng và nhận báo giá quản lý Gym, Yoga, Pilates, Bể bơi và Spa.">
+<title>Báo giá DANAVA Studio | Hello DANAVA</title>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<header class="top"><div class="wrap nav">
+<a class="brand" href="/"><span class="mark">D</span><span>DANAVA <b>Studio</b></span></a>
+<nav><a href="#compare">So sánh gói</a><a class="small-button" href="#quote">Nhận báo giá</a></nav>
+</div></header>
+<main>
+<section class="hero"><div class="wrap">
+<p class="eyebrow">BÁO GIÁ DANAVA STUDIO</p>
+<h1>Chọn gói phù hợp<br><em>với phòng tập của bạn.</em></h1>
+<p class="hero-copy">So sánh tính năng, chọn thời hạn và nhận báo giá theo nhu cầu vận hành của bạn.</p>
+<div id="models" class="pills" aria-label="Mô hình kinh doanh"></div>
+</div></section>
+<div class="wrap pricing">
+<div id="notice" class="notice" role="status" hidden></div>
+<section aria-labelledby="pricing-heading">
+<div class="section-bar"><h2 id="pricing-heading">Gói phần mềm</h2><div id="terms" class="pills" aria-label="Kỳ hạn"></div></div>
+<div id="cards" class="cards"></div>
+</section>
+<section class="block" id="compare" aria-labelledby="compare-heading">
+<div class="section-bar"><h2 id="compare-heading">So sánh tính năng</h2><label class="toggle"><input id="differences" type="checkbox"> Chỉ xem điểm khác nhau</label></div>
+<div class="table-wrap"><table id="matrix"></table></div>
+</section>
+<section class="block quote" id="quote" aria-labelledby="quote-heading">
+<div><p class="eyebrow">TÙY CHỈNH GÓI</p><h2 id="quote-heading">Nhận báo giá cho phòng tập</h2>
+<label>Gói phần mềm<select id="plan"></select></label>
+<h3>Tùy chọn bổ sung</h3><div id="extras"></div>
+<div class="estimate" id="estimate" aria-live="polite"></div></div>
+<form id="lead" class="panel">
+<h3>Thông tin liên hệ</h3>
+<label>Họ và tên<input name="name" required maxlength="100" autocomplete="name"></label>
+<label>Tên phòng tập / doanh nghiệp<input name="business" required maxlength="150" autocomplete="organization"></label>
+<label>Số điện thoại<input name="phone" type="tel" required minlength="8" maxlength="22" autocomplete="tel"></label>
+<div hidden><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+<label class="toggle"><input type="checkbox" required> Tôi đồng ý để DANAVA liên hệ về yêu cầu này.</label>
+<button class="primary" type="submit">Gửi yêu cầu báo giá</button>
+<p id="lead-status" role="status"></p>
+</form>
+</section>
+</div></main>
+<footer><div class="wrap nav"><span>DANAVA Studio</span><a href="/admin">Đăng nhập nhân viên</a></div></footer>
+</body></html>
