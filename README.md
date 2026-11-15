@@ -12,16 +12,15 @@ Website báo giá DANAVA Studio và cổng quản trị bán hàng nội bộ.
 Cần Node.js 24 trở lên. Ứng dụng dùng thư viện tích hợp của Node.js.
 
 ```bash
-cp .env.example .env
-# Đặt ADMIN_EMAIL và ADMIN_PASSWORD trong .env. Mật khẩu tối thiểu 12 ký tự.
-npm start
+npm run dev
 ```
 
 - Báo giá tại `http://localhost:3000/`.
 - Admin tại `http://localhost:3000/admin`.
+- Lệnh chạy cả giao diện và API trên cùng cổng. Node tự khởi động lại khi mã backend thay đổi.
+- Lần đầu chạy với cơ sở dữ liệu mới và chưa cấu hình admin, terminal in email và mật khẩu ngẫu nhiên để đăng nhập. Lưu mật khẩu vì thông tin chỉ hiện một lần.
+- Có thể tạo `.env` từ `.env.example` nếu muốn đặt email và mật khẩu admin trước lần chạy đầu, đổi cổng hoặc đổi thư mục dữ liệu. Dữ liệu mặc định nằm tại `data/studio.sqlite`. Đổi mật khẩu của tài khoản đã tạo trong mục **Tài khoản**.
 - `npm run check` kiểm tra cú pháp JavaScript chính.
-
-Lần đầu khởi động, hệ thống tạo tài khoản quản trị và lưu dữ liệu trong `DATA_DIR/studio.sqlite`. Tài khoản đã tạo đổi mật khẩu trong mục **Tài khoản**. Biến môi trường dùng để khởi tạo tài khoản lần đầu.
 
 ## Vận hành
 
@@ -36,4 +35,4 @@ Nguồn được ghi nhận theo kênh được gắn trên link. Link chuyển 
 
 ## Chạy tại hellodanava.vn
 
-Chạy tiến trình Node.js trên máy chủ có đĩa lưu trữ bền vững. Đặt HTTPS ở reverse proxy, trỏ DNS về máy chủ và đặt `SECURE_COOKIES=1` trong môi trường chạy thật. Giữ ứng dụng và API cùng tên miền. Đặt `HOST=127.0.0.1` khi proxy và ứng dụng chạy cùng máy. Sao lưu SQLite bằng công cụ hỗ trợ sao lưu cơ sở dữ liệu đang hoạt động, hoặc dừng tiến trình trước khi sao chép thư mục dữ liệu. Cấu hình giới hạn lưu lượng tại reverse proxy theo lưu lượng thực tế.
+Cấu hình `ADMIN_EMAIL` và `ADMIN_PASSWORD` trước lần khởi động đầu. Dùng `npm start` trên máy chủ có đĩa lưu trữ bền vững. Đặt HTTPS ở reverse proxy, trỏ DNS về máy chủ và đặt `SECURE_COOKIES=1` trong môi trường chạy thật. Giữ ứng dụng và API cùng tên miền. Đặt `HOST=127.0.0.1` khi proxy và ứng dụng chạy cùng máy. Sao lưu SQLite bằng công cụ hỗ trợ sao lưu cơ sở dữ liệu đang hoạt động, hoặc dừng tiến trình trước khi sao chép thư mục dữ liệu. Cấu hình giới hạn lưu lượng tại reverse proxy theo lưu lượng thực tế.

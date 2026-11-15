@@ -38,13 +38,19 @@ export function matches(password, stored) {
   return timingSafeEqual(Buffer.from(hashPassword(password, salt)), Buffer.from(stored));
 }
 
-export function bootstrap() {
+export function bootstrap({dev = false} = {}) {
   if (db.prepare("SELECT 1 FROM users WHERE role='admin'").get()) return;
-  const {ADMIN_EMAIL, ADMIN_PASSWORD} = process.env;
-  if (!ADMIN_EMAIL?.includes('@') || (ADMIN_PASSWORD?.length ?? 0) < 12)
-    throw new Error('Cấu hình ADMIN_EMAIL và ADMIN_PASSWORD (ít nhất 12 ký tự) trước khi khởi động lần đầu.');
-  db.prepare("INSERT OR IGNORE INTO users(name,email,password,role) VALUES(?,?,?,'admin')")
-    .run('Quản trị DANAVA', ADMIN_EMAIL.toLowerCase().trim(), hashPassword(ADMIN_PASSWORD));
+  const configuredEmail = process.env.ADMIN_EMAIL?.trim();
+  const configuredPassword = process.env.ADMIN_PASSWORD;
+  const generated = dev && !configuredEmail && !configuredPassword;
+  const email = generated ? 'admin@hellodanava.test' : configuredEmail;
+  const password = generated ? randomBytes(18).toString('base64url') : configuredPassword;
+  if (!email?.includes('@') || (password?.length ?? 0) < 12 || password.length > 128)
+    throw new Error('Cấu hình ADMIN_EMAIL và ADMIN_PASSWORD (12–128 ký tự) trước khi khởi động lần đầu.');
+  const result = db.prepare("INSERT OR IGNORE INTO users(name,email,password,role) VALUES(?,?,?,'admin')")
+    .run('Quản trị DANAVA', email.toLowerCase(), hashPassword(password));
+  if (generated && result.changes)
+    console.log('Tài khoản admin local (hiện một lần)\nEmail: '+email+'\nMật khẩu: '+password);
 }
 
 export function catalog(id) {

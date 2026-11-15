@@ -5,7 +5,8 @@ import { db, bootstrap, catalog, hashPassword, matches } from './db.js';
 import { apps, channels, models, quote, states, terms } from './catalog.js';
 import { attribution, events, leadStatuses, report } from './analytics.js';
 
-bootstrap();
+const dev = process.argv.includes('--dev');
+bootstrap({dev});
 const secure = process.env.SECURE_COOKIES === '1';
 const port = Number(process.env.PORT || 3000);
 const tokenHash = token => createHash('sha256').update(token).digest('hex');
@@ -295,4 +296,4 @@ const server = createServer(async (req, res) => {
     if (!res.headersSent) json(res,error.status || 500,{error:error.status ? error.message : 'Có lỗi hệ thống. Vui lòng thử lại.'});
   }
 });
-server.listen(port, process.env.HOST || '0.0.0.0', () => console.log('Hello DANAVA · cổng '+port));
+server.listen(port, process.env.HOST || (dev ? '127.0.0.1' : '0.0.0.0'), () => console.log('Hello DANAVA · cổng '+port));
