@@ -17,6 +17,9 @@ const staffName = id => staff.find(item=>item.id===id)?.name || '—';
 const wrapTable = html => '<div class="table-wrap"><table>'+html+'</table></div>';
 const head = labels => '<thead><tr>'+labels.map(label=>'<th scope="col">'+e(label)+'</th>').join('')+'</tr></thead>';
 const empty = (cols,text) => `<tr><td colspan="${cols}" class="muted">${e(text)}</td></tr>`;
+// "Nam Hưng Zalo" -> "nam-hung-zalo"
+const toSlug = value => String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d')
+  .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40).replace(/-+$/,'');
 const identity = () => user.name+' · '+(isAdmin()?'Quản trị':'Nhân viên');
 
 async function loadLinks() {
@@ -94,8 +97,26 @@ async function renderReport() {
   <progress max="${sourceTotal||1}" value="${row.views}" aria-label="Lượt truy cập từ ${e(row.channel)}"></progress></div>`).join(''):'<p class="muted">Chưa có dữ liệu trong kỳ.</p>'}</section>
   <section class="panel"><h2>Hoạt động chia sẻ link</h2><dl class="counts"><div><dt>Sao chép link</dt><dd>${data.kinds.copy}</dd></div><div><dt>Bấm chia sẻ</dt><dd>${data.kinds.share}</dd></div></dl>
   <p class="muted">Số thao tác trong admin. Lượt truy cập được ghi nhận khi khách mở trang báo giá.</p></section></div>
+  ${channelMatrix(data)}
   <section class="block"><h2>Hiệu quả theo nhân viên</h2>${wrapTable(head(['Nhân viên','Lượt truy cập','Yêu cầu','Sao chép','Bấm chia sẻ'])+
     '<tbody>'+(data.staff.map(row=>`<tr><th scope="row">${e(staffName(row.id))}</th><td>${row.views}</td><td>${row.leads}</td><td>${row.copies}</td><td>${row.shares}</td></tr>`).join('') || empty(5,'Chưa có hoạt động.'))+'</tbody>')}</section>`;
+}
+// Staff x social network: where each person's customers actually came from.
+function channelMatrix(data) {
+  const rows = data.staffChannels || [];
+  const used = [...channels, 'Khác'].filter((name, i, all) => all.indexOf(name) === i && rows.some(row => row.channels[name]));
+  if (!rows.length) return '<section class="block"><h2>Nhân viên theo từng kênh</h2><p class="muted">Chưa có lượt truy cập qua link nhân viên trong kỳ.</p></section>';
+  return `<section class="block"><h2>Nhân viên theo từng kênh</h2>
+  <p class="muted">Mỗi ô: lượt truy cập và số yêu cầu báo giá đến từ kênh đó. Thanh màu là tỷ lệ của kênh trong tổng lượt của nhân viên.</p>
+  ${wrapTable(head(['Nhân viên',...used,'Tổng'])+'<tbody>'+rows.map(row=>{
+    const total = Object.values(row.channels).reduce((sum,cell)=>sum+cell.views,0);
+    const leads = Object.values(row.channels).reduce((sum,cell)=>sum+cell.leads,0);
+    return `<tr><th scope="row">${e(staffName(row.id))}</th>${used.map(name=>{
+      const cell = row.channels[name];
+      return cell ? `<td class="mx-cell"><b>${cell.views}</b> lượt<small>${cell.leads} yêu cầu</small>
+        <progress max="${total||1}" value="${cell.views}" aria-label="${e(name)}: ${cell.views} lượt"></progress></td>` : '<td class="muted">—</td>';
+    }).join('')}<td class="mx-cell"><b>${total}</b> lượt<small>${leads} yêu cầu</small></td></tr>`;
+  }).join('')+'</tbody>')}</section>`;
 }
 function renderLinks() {
   content.innerHTML=`<h2>Link nhân viên</h2>
@@ -104,18 +125,25 @@ function renderLinks() {
   <label>Họ tên<input name="name" maxlength="100" required></label><label>Email<input type="email" name="email" maxlength="160" required></label>
   <label>Mật khẩu ban đầu<input type="password" name="password" minlength="12" maxlength="128" required autocomplete="new-password"></label>
   <button class="primary">Tạo nhân viên</button></form>
-  <form data-form="link" class="panel"><h3>Cấp link theo kênh</h3>
+  <form data-form="link" class="panel"><h3>Cấp link cho nhân viên</h3>
   <label>Nhân viên<select name="employee">${staff.filter(item=>item.active).map(item=>option(item.id,item.name)).join('')}</select></label>
-  <label>Kênh<select name="channel">${channels.map(item=>option(item,item)).join('')}</select></label>
+  <p class="muted">Mỗi nhân viên 1 link dùng chung cho mọi mạng xã hội. Hệ thống tự nhận biết khách đến từ Zalo, Facebook, Messenger, TikTok, Instagram hay Google. Với mã QR hoặc tờ rơi, dùng nút <b>Link QR</b> để thống kê đúng kênh QR.</p>
   <button class="primary">Tạo link</button></form></div>`:''}
+  <div class="link-tools"><label class="link-search">Tìm link<input id="link-search" type="search" placeholder="Gõ mã (VD: 006), tên nhân viên hoặc kênh" autocomplete="off"></label>
+  <p class="muted">Đặt mã dễ nhớ cho link: chữ không dấu, số hoặc dấu gạch ngang, ví dụ <b>006</b> hay <b>nam-zalo</b>. Đổi mã thì link mã cũ ngừng hoạt động, nhưng số liệu đã ghi nhận vẫn giữ nguyên.</p></div>
   ${wrapTable(head(['Nhân viên','Kênh','Link','Trạng thái','Thao tác'])+'<tbody>'+
-    (links.map(item=>`<tr><th scope="row">${e(staffName(item.user_id))}</th><td>${e(item.channel)}</td>
-    <td><a href="/r/${e(item.code)}" target="_blank" rel="noopener">/r/${e(item.code)}</a></td><td>${item.active?'Đang bật':'Đã tắt'}</td>
+    (links.map(item=>{
+      const path='/r/'+(item.slug||item.code);
+      return `<tr data-search="${e([staffName(item.user_id),item.channel,item.slug,item.code].join(' ').toLowerCase())}"><th scope="row">${e(staffName(item.user_id))}</th><td>${item.channel==='Đa kênh'?'Tất cả mạng xã hội':e(item.channel)}</td>
+    <td><a class="link-path" href="${e(path)}" target="_blank" rel="noopener">${e(path)}</a>
+    <form data-form="slug" data-code="${e(item.code)}" class="slug-form"><input name="slug" value="${e(item.slug||'')}" maxlength="40" placeholder="Đặt mã, VD: 006" aria-label="Mã dễ nhớ cho link ${e(staffName(item.user_id))} · ${e(item.channel)}"><button class="small-button">Lưu mã</button></form></td>
+    <td>${item.active?'Đang bật':'Đã tắt'}</td>
     <td><div class="actions">
-    ${item.active?`<button data-act="copy" data-code="${e(item.code)}">Sao chép</button>
-      ${navigator.share?`<button data-act="share" data-code="${e(item.code)}">Chia sẻ</button>`:''}`:''}
+    ${item.active?`<button data-act="copy" data-code="${e(item.code)}" data-path="${e(path)}">Sao chép</button>
+      <button data-act="copy" data-code="${e(item.code)}" data-path="${e(path)}/qr" title="Dùng khi in mã QR, tờ rơi">Link QR</button>
+      ${navigator.share?`<button data-act="share" data-code="${e(item.code)}" data-path="${e(path)}">Chia sẻ</button>`:''}`:''}
     ${isAdmin()?`<button data-act="toggle-link" data-code="${e(item.code)}" data-active="${!item.active}">${item.active?'Tắt':'Bật'}</button>`:''}
-    </div></td></tr>`).join('') || empty(5,'Chưa có link được cấp.'))+'</tbody>')}
+    </div></td></tr>`;}).join('') || empty(5,'Chưa có link được cấp.'))+'</tbody>')}
   ${isAdmin()?`<h3>Danh sách tài khoản</h3>${wrapTable(head(['Họ tên','Email','Trạng thái','Thao tác'])+'<tbody>'+staff.map(item=>
     `<tr><th scope="row">${e(item.name)}</th><td>${e(item.email)}</td><td>${item.active?'Đang hoạt động':'Đã khóa'}</td>
     <td>${item.id===user.id?'Quản trị':`<button class="small-button" data-act="toggle-user" data-id="${item.id}" data-active="${!item.active}">${item.active?'Khóa':'Mở khóa'}</button>`}</td></tr>`
@@ -130,7 +158,7 @@ async function renderLeads() {
       <summary>${e(row.quote.plan)} · ${row.quote.term} tháng</summary><small>Giá gói ${money(row.quote.base)}</small>
       ${row.quote.items.map(item=>`<small>${e(item.name)} × ${item.quantity} · ${money(item.total)}</small>`).join('')}
       </details><b>${money(row.quote.subtotal)}</b>${row.quote.needsReview?'<small>Cần tư vấn thêm</small>':''}</td>
-      <td>${e(row.channel)}<small>${e(row.employee||'Chưa phân công')}</small></td><td>${dateTime(row.created)}</td>
+      <td>${e(row.channel)}<small>${e(row.employee||'Chưa phân công')}${row.link?' · /r/'+e(row.link):''}</small></td><td>${dateTime(row.created)}</td>
       <td><select aria-label="Trạng thái của ${e(row.business)}" data-lead="${e(row.id)}">${statuses.map(s=>option(s,s,s===row.status)).join('')}</select></td></tr>`).join('') ||
       empty(5,'Chưa có yêu cầu báo giá.'))+'</tbody>')}
     <div class="section-bar"><button class="small-button" data-act="previous" ${page===1?'disabled':''}>Trang trước</button>
@@ -210,7 +238,7 @@ async function action(button) {
     await render();
   }
   if (act==='copy'||act==='share') {
-    const url=location.origin+'/r/'+code;
+    const url=location.origin+(button.dataset.path||'/r/'+code);
     if (act==='copy') await navigator.clipboard.writeText(url);
     else {
       try { await navigator.share({title:'DANAVA Studio',url}); }
@@ -278,6 +306,11 @@ content.addEventListener('click',async ev=>{
   finally {button.disabled=false;}
 });
 content.addEventListener('input',ev=>{
+  if (ev.target.id==='link-search') {
+    const query=ev.target.value.trim().toLowerCase();
+    content.querySelectorAll('tr[data-search]').forEach(row=>{row.hidden=!!query && !row.dataset.search.includes(query);});
+    return;
+  }
   if (tab==='catalog' && ev.target.matches('input:not([type=checkbox])')) editCatalog(ev.target);
 });
 content.addEventListener('change',async ev=>{
@@ -311,6 +344,7 @@ content.addEventListener('submit',async ev=>{
     if (form.dataset.form==='employee') await api('/admin/users',task('POST',data));
     if (form.dataset.form==='link') await api('/admin/links',task('POST',{...data,employee:Number(data.employee)}));
     if (form.dataset.form==='password') await api('/admin/password',task('POST',data));
+    if (form.dataset.form==='slug') await api('/admin/link-slug',task('POST',{code:form.dataset.code,slug:toSlug(data.slug)}));
     form.reset();
     if (form.dataset.form!=='password') await render();
     notice('Đã lưu.');

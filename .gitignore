@@ -2,3 +2,5 @@
 data/
 node_modules/
 *.sqlite*
+# Ghi chú riêng trên máy (tài khoản, mật khẩu) — không bao giờ commit
+*.local.md

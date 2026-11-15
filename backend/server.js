@@ -1,13 +1,21 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { channelKeys, keyOf, detectChannel, resolveChannel } from './channel.js';
 import { db, bootstrap, catalog, hashPassword, matches } from './db.js';
-import { apps, channels, models, quote, states, terms } from './catalog.js';
+import { apps, channels, models, quote, states, terms, ANY_CHANNEL } from './catalog.js';
 import { attribution, events, leadStatuses, report } from './analytics.js';
 
 const dev = process.argv.includes('--dev');
 bootstrap({dev});
 const secure = process.env.SECURE_COOKIES === '1';
+// Behind one reverse proxy (TRUST_PROXY=1), the proxy appends the real client IP as the LAST
+// X-Forwarded-For entry. Earlier entries come from the client and can be forged, so never use them.
+const trustProxy = process.env.TRUST_PROXY === '1';
+const clientIp = req => {
+  const forwarded = trustProxy && req.headers['x-forwarded-for'];
+  return forwarded ? forwarded.split(',').at(-1).trim() || req.socket.remoteAddress : req.socket.remoteAddress;
+};
 const port = Number(process.env.PORT || 3000);
 const tokenHash = token => createHash('sha256').update(token).digest('hex');
 const anonymous = randomUUID;
@@ -90,7 +98,10 @@ function cleanDraft(data) {
 const assets = {
   '/': ['index.html','text/html'], '/admin': ['admin.html','text/html'],
   '/app.js': ['app.js','text/javascript'], '/admin.js': ['admin.js','text/javascript'],
-  '/ui.js': ['ui.js','text/javascript'], '/style.css': ['style.css','text/css']
+  '/ui.js': ['ui.js','text/javascript'], '/style.css': ['style.css','text/css'],
+  '/scene.js': ['scene.js','text/javascript'], '/vendor/three.module.min.js': ['vendor/three.module.min.js','text/javascript'],
+  '/logo.png': ['logo.png','image/png'], '/mark.png': ['mark.png','image/png'],
+  '/fonts/UTM-Eremitage.ttf': ['fonts/UTM-Eremitage.ttf','font/ttf']
 };
 function transaction(fn) {
   db.exec('BEGIN IMMEDIATE');
@@ -108,25 +119,34 @@ const server = createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
   res.setHeader('X-Frame-Options','DENY');
-  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
   try {
     const url = new URL(req.url, 'http://localhost');
     const path = url.pathname;
     const method = req.method;
-    const ip = req.socket.remoteAddress;
+    const ip = clientIp(req);
     const jar = cookies(req);
     const user = jar.session && session.get(tokenHash(jar.session), Date.now());
     const visitor = /^[a-f0-9-]{36}$/.test(jar.visitor || '') ? jar.visitor : anonymous();
     const visitorHeader = jar.visitor === visitor ? {} : {'Set-Cookie': cookie('visitor', visitor, 7776000)};
     if (method === 'GET' && Object.hasOwn(assets,path)) {
       const [file, type] = assets[path];
-      const content = await readFile(new URL('../frontend/' + file, import.meta.url));
-      res.writeHead(200, {'Content-Type': type+'; charset=utf-8', 'Cache-Control':'no-cache', ...visitorHeader});
+      const content = await readFile(new URL('../frontend/' + file, import.meta.url)).catch(error => {
+        if (error.code === 'ENOENT') return null;
+        throw error;
+      });
+      if (!content) { res.writeHead(404, {'Cache-Control':'no-store'}); return res.end(); }
+      res.writeHead(200, {'Content-Type': /^(image|font)\//.test(type) ? type : type+'; charset=utf-8', 'Cache-Control':'no-cache', ...visitorHeader});
       return res.end(content);
     }
-    if (method === 'GET' && /^\/r\/[a-z0-9-]+$/.test(path)) {
-      const link = attribution(path.slice(3));
-      res.writeHead(302, {Location: link ? '/?ref='+link.code : '/', 'Cache-Control':'no-store'});
+    const short = method === 'GET' && /^\/r\/([a-z0-9-]+)(?:\/([a-z]+))?\/?$/.exec(path.toLowerCase());
+    if (short) {
+      const link = attribution(short[1]);
+      const via = channelKeys[short[2]] ? short[2]
+        : keyOf(detectChannel(req.headers['user-agent'], req.headers.referer));
+      const headers = {Location: link ? '/?ref='+encodeURIComponent(link.slug || link.code) : '/', 'Cache-Control':'no-store'};
+      if (link) headers['Set-Cookie'] = via ? cookie('via', via, 86400) : cookie('via', '', 0);
+      res.writeHead(302, headers);
       return res.end();
     }
     if (method === 'GET' && path === '/api/catalog')
@@ -139,7 +159,9 @@ const server = createServer(async (req, res) => {
           ['view','interaction'].includes(data.kind)) {
         const link = attribution(data.ref);
         const plan = catalog('published').plans.some(p => p.id === data.plan) ? data.plan : null;
-        events.run(data.kind,visitor,link?.code ?? null,link?.channel ?? 'Trực tiếp',plan,Date.now());
+        const channel = resolveChannel({link, viaKey: jar.via, userAgent: req.headers['user-agent'],
+          referrer: typeof data.referrer === 'string' ? data.referrer.slice(0,500) : ''});
+        events.run(data.kind,visitor,link?.code ?? null,channel,plan,Date.now());
       }
       return json(res,200,{},visitorHeader);
     }
@@ -158,7 +180,8 @@ const server = createServer(async (req, res) => {
         if (!result) fail(400,'Gói hoặc tính năng bổ sung không hợp lệ.');
         const link = attribution(data.ref);
         const code = link?.code ?? null;
-        const channel = link?.channel ?? 'Trực tiếp';
+        const channel = resolveChannel({link, viaKey: jar.via, userAgent: req.headers['user-agent'],
+          referrer: typeof data.referrer === 'string' ? data.referrer.slice(0,500) : ''});
         const time = Date.now();
         db.prepare('INSERT INTO leads(id,name,business,phone,model,code,channel,quote,version,created) VALUES(?,?,?,?,?,?,?,?,?,?)')
           .run(data.id,data.name.trim(),data.business.trim(),data.phone.trim(),data.model,code,channel,JSON.stringify(result),current.version,time);
@@ -217,10 +240,25 @@ const server = createServer(async (req, res) => {
       events.run(data.kind,null,link.code,link.channel,null,Date.now());
       return json(res,200,{});
     }
+    if (method === 'POST' && path === '/api/admin/link-slug') {
+      const data = await body(req);
+      limit('slug:'+user.id,30,60000);
+      const link = typeof data.code === 'string' ? db.prepare('SELECT * FROM links WHERE code=?').get(data.code) : null;
+      if (!link || (!isAdmin && link.user_id !== user.id)) fail(404,'Không tìm thấy link.');
+      const slug = typeof data.slug === 'string' ? data.slug.trim().toLowerCase() : '';
+      if (slug && (!/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(slug) || /^[a-f0-9]{12}$/.test(slug)))
+        fail(400,'Mã link chỉ gồm chữ thường không dấu, số và dấu gạch ngang (1–40 ký tự).');
+      transaction(() => {
+        if (slug && db.prepare('SELECT 1 FROM links WHERE (slug=? OR code=?) AND code<>?').get(slug,slug,link.code))
+          fail(409,'Mã "'+slug+'" đã có người dùng. Chọn mã khác.');
+        db.prepare('UPDATE links SET slug=? WHERE code=?').run(slug || null, link.code);
+      });
+      return json(res,200,{code:link.code, slug:slug || null});
+    }
     if (method === 'GET' && path === '/api/admin/leads') {
       const scope = isAdmin ? null : user.id;
       const page = Math.min(100000,Math.max(1, parseInt(url.searchParams.get('page'),10) || 1));
-      const rows = db.prepare(`SELECT a.*,u.name AS employee FROM leads a LEFT JOIN links l ON l.code=a.code
+      const rows = db.prepare(`SELECT a.*,u.name AS employee,COALESCE(l.slug,l.code) AS link FROM leads a LEFT JOIN links l ON l.code=a.code
         LEFT JOIN users u ON l.user_id=u.id WHERE (? IS NULL OR l.user_id=?) ORDER BY a.created DESC,a.id DESC LIMIT 51 OFFSET ?`)
         .all(scope,scope,(page-1)*50);
       return json(res,200,{items:rows.slice(0,50).map(row=>({...row,quote:JSON.parse(row.quote)})), hasNext:rows.length>50,statuses:leadStatuses});
@@ -257,12 +295,13 @@ const server = createServer(async (req, res) => {
     }
     if (method === 'POST' && path === '/api/admin/links') {
       const data = await body(req);
-      if (!channels.includes(data.channel) || !Number.isInteger(data.employee) ||
+      if (data.channel === undefined || data.channel === '') data.channel = ANY_CHANNEL;
+      if (![...channels, ANY_CHANNEL].includes(data.channel) || !Number.isInteger(data.employee) ||
           !db.prepare('SELECT 1 FROM users WHERE id=? AND active=1').get(data.employee))
         fail(400,'Chọn nhân viên đang hoạt động và kênh hợp lệ.');
       const code = randomBytes(6).toString('hex');
       const result = db.prepare('INSERT OR IGNORE INTO links(code,user_id,channel) VALUES(?,?,?)').run(code,data.employee,data.channel);
-      if (!result.changes) fail(409,'Nhân viên đã có link cho kênh này.');
+      if (!result.changes) fail(409, data.channel === ANY_CHANNEL ? 'Nhân viên này đã có link.' : 'Nhân viên đã có link cho kênh này.');
       return json(res,201,{code});
     }
     if (method === 'PATCH' && path === '/api/admin/links') {

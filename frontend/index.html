@@ -4,48 +4,85 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="So sánh gói DANAVA Studio, chọn tính năng và nhận báo giá quản lý Gym, Yoga, Pilates, Bể bơi và Spa.">
+<meta name="theme-color" content="#f5f7fb">
 <title>Báo giá DANAVA Studio | Hello DANAVA</title>
+<link rel="icon" type="image/png" href="/mark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/style.css">
 <script type="module" src="/app.js"></script>
 </head>
-<body>
+<body class="home">
+<div class="blobs" aria-hidden="true"><span></span><span></span><span></span></div>
 <header class="top"><div class="wrap nav">
-<a class="brand" href="/"><span class="mark">D</span><span>DANAVA <b>Studio</b></span></a>
-<nav><a href="#compare">So sánh gói</a><a class="small-button" href="#quote">Nhận báo giá</a></nav>
+<a class="brand" href="/"><img src="/logo.png" alt="DANAVA Solutions" width="164" height="40"><span class="brand-tag">Studio</span></a>
+<nav><a href="#cards">Bảng giá</a><a href="#compare">So sánh gói</a><a class="small-button" href="#quote">Nhận báo giá</a></nav>
 </div></header>
 <main>
-<section class="hero"><div class="wrap">
-<p class="eyebrow">BÁO GIÁ DANAVA STUDIO</p>
-<h1>Chọn gói phù hợp<br><em>với phòng tập của bạn.</em></h1>
+<section class="hero">
+<div class="wrap hero-grid">
+<div class="hero-text">
+<p class="eyebrow-pill"><i class="ico spark" aria-hidden="true"></i>Phần mềm quản lý phòng tập · DANAVA Studio</p>
+<h1>Chọn gói phù hợp <em>với phòng tập</em> của bạn.</h1>
 <p class="hero-copy">So sánh tính năng, chọn thời hạn và nhận báo giá theo nhu cầu vận hành của bạn.</p>
-<div id="models" class="pills" aria-label="Mô hình kinh doanh"></div>
-</div></section>
+<p class="pick-label">Bạn đang vận hành mô hình nào?</p>
+<div id="models" class="pills chips" aria-label="Mô hình kinh doanh"></div>
+<div class="hero-cta"><a class="primary" href="#cards">Xem bảng giá <i class="ico arrow" aria-hidden="true"></i></a><a class="text-link" href="#compare">So sánh tính năng</a></div>
+</div>
+<div class="stage" aria-hidden="true">
+<div class="halo"></div>
+<div id="scene"></div>
+<div class="float f1"><i class="ico cal"></i><span>Lịch lớp &amp; điểm danh</span></div>
+<div class="float f2"><i class="ico scan"></i><span>Check-in &amp; khóa cửa</span></div>
+<div class="float f3"><i class="ico phone"></i><span>App hội viên</span></div>
+<img class="stage-fallback" src="/mark.png" alt="" width="220" height="220">
+<p class="stage-hint">Kéo để xoay</p>
+<p class="stage-cap">Mô hình đang chọn <b id="stage-label"></b></p>
+</div>
+</div>
+<svg class="wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40c160 38 320 52 520 30S900 0 1100 14s260 40 340 46v30H0z"/></svg>
+</section>
 <div class="wrap pricing">
 <div id="notice" class="notice" role="status" hidden></div>
-<section aria-labelledby="pricing-heading">
-<div class="section-bar"><h2 id="pricing-heading">Gói phần mềm</h2><div id="terms" class="pills" aria-label="Kỳ hạn"></div></div>
+<section class="reveal" aria-labelledby="pricing-heading">
+<div class="section-bar"><div class="sec-title"><p class="eyebrow-pill"><i class="ico layers" aria-hidden="true"></i>Bảng giá</p><h2 id="pricing-heading">Gói phần mềm</h2></div><div id="terms" class="pills segmented" aria-label="Kỳ hạn"></div></div>
 <div id="cards" class="cards"></div>
 </section>
-<section class="block" id="compare" aria-labelledby="compare-heading">
-<div class="section-bar"><h2 id="compare-heading">So sánh tính năng</h2><label class="toggle"><input id="differences" type="checkbox"> Chỉ xem điểm khác nhau</label></div>
+<section class="block reveal" id="compare" aria-labelledby="compare-heading">
+<div class="section-bar"><div class="sec-title"><p class="eyebrow-pill"><i class="ico check" aria-hidden="true"></i>Chi tiết</p><h2 id="compare-heading">So sánh tính năng</h2></div><label class="toggle switch"><input id="differences" type="checkbox"> Chỉ xem điểm khác nhau</label></div>
 <div class="table-wrap"><table id="matrix"></table></div>
 </section>
-<section class="block quote" id="quote" aria-labelledby="quote-heading">
-<div><p class="eyebrow">TÙY CHỈNH GÓI</p><h2 id="quote-heading">Nhận báo giá cho phòng tập</h2>
-<label>Gói phần mềm<select id="plan"></select></label>
-<h3>Tùy chọn bổ sung</h3><div id="extras"></div>
-<div class="estimate" id="estimate" aria-live="polite"></div></div>
+<section class="block reveal" id="quote" aria-labelledby="quote-heading">
+<div class="section-bar"><div class="sec-title"><p class="eyebrow-pill"><i class="ico spark" aria-hidden="true"></i>Tùy chỉnh gói</p><h2 id="quote-heading">Nhận báo giá cho phòng tập</h2></div></div>
+<div class="quote">
+<div class="quote-config">
+<div class="step"><span class="step-n" aria-hidden="true">1</span><div><h3>Chọn gói phần mềm</h3><p class="muted">Giá theo kỳ hạn đang chọn ở bảng giá.</p></div></div>
+<div id="plan-picker" class="plan-picker" role="group" aria-label="Gói phần mềm"></div>
+<div class="step"><span class="step-n" aria-hidden="true">2</span><div><h3>Tùy chọn bổ sung</h3><p class="muted">Tick để thêm vào dự toán, chỉnh số lượng nếu cần.</p></div></div>
+<div id="extras"></div>
+</div>
 <form id="lead" class="panel">
-<h3>Thông tin liên hệ</h3>
-<label>Họ và tên<input name="name" required maxlength="100" autocomplete="name"></label>
-<label>Tên phòng tập / doanh nghiệp<input name="business" required maxlength="150" autocomplete="organization"></label>
-<label>Số điện thoại<input name="phone" type="tel" required minlength="8" maxlength="22" autocomplete="tel"></label>
+<div class="step"><span class="step-n" aria-hidden="true">3</span><div><h3>Thông tin liên hệ</h3><p class="muted">DANAVA sẽ gọi lại để tư vấn và gửi báo giá.</p></div></div>
+<label>Họ và tên<input name="name" required maxlength="100" autocomplete="name" placeholder="Nguyễn Văn A"></label>
+<label>Tên phòng tập / doanh nghiệp<input name="business" required maxlength="150" autocomplete="organization" placeholder="VD: Sunrise Yoga"></label>
+<label>Số điện thoại<input name="phone" type="tel" required minlength="8" maxlength="22" autocomplete="tel" placeholder="09xx xxx xxx"></label>
 <div hidden><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
-<label class="toggle"><input type="checkbox" required> Tôi đồng ý để DANAVA liên hệ về yêu cầu này.</label>
-<button class="primary" type="submit">Gửi yêu cầu báo giá</button>
-<p id="lead-status" role="status"></p>
+<label class="toggle consent"><input type="checkbox" class="tick" required> Tôi đồng ý để DANAVA liên hệ về yêu cầu này.</label>
 </form>
+<div class="checkout">
+<div class="receipt" id="estimate" aria-live="polite"></div>
+<div class="checkout-cta">
+<button class="primary" type="submit" form="lead">Gửi yêu cầu báo giá <i class="ico arrow" aria-hidden="true"></i></button>
+<p id="lead-status" role="status"></p>
+</div>
+</div>
+</div>
 </section>
 </div></main>
-<footer><div class="wrap nav"><span>DANAVA Studio</span><a href="/admin">Đăng nhập nhân viên</a></div></footer>
+<footer><div class="wrap foot">
+<div><a class="brand" href="/"><img src="/mark.png" alt="" width="40" height="40"><span>DANAVA <b>Studio</b></span></a>
+<p>Phần mềm quản lý Gym, Yoga, Pilates, Bể bơi và Spa.</p></div>
+<a href="/admin">Đăng nhập nhân viên <i class="ico arrow" aria-hidden="true"></i></a>
+</div><p class="wordmark" aria-hidden="true">DANAVA</p></footer>
 </body></html>

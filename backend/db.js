@@ -25,6 +25,10 @@ db.exec(`
     phone TEXT NOT NULL, model TEXT NOT NULL, code TEXT REFERENCES links(code), channel TEXT NOT NULL,
     quote TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'Mới', created INTEGER NOT NULL);
 `);
+// Friendly link name chosen by staff (e.g. "006", "nam-zalo"). Stats stay keyed on the internal code.
+if (!db.prepare("SELECT 1 FROM pragma_table_info('links') WHERE name='slug'").get())
+  db.exec('ALTER TABLE links ADD COLUMN slug TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS links_slug ON links(slug)');
 const insert = db.prepare('INSERT OR IGNORE INTO catalogs VALUES (?, ?, 1)');
 insert.run('draft', JSON.stringify(seed));
 insert.run('published', JSON.stringify(seed));
