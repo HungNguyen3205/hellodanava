@@ -35,6 +35,8 @@ Nguồn được ghi nhận theo nhân viên sở hữu link và kênh nhận di
 
 ## Chạy tại hellodanava.vn
 
+Triển khai trên cPanel (hello.danava.vn): làm theo [DEPLOY-CPANEL.md](DEPLOY-CPANEL.md). File khởi động trên hosting là `app.cjs`.
+
 Cấu hình `ADMIN_EMAIL` và `ADMIN_PASSWORD` trước lần khởi động đầu. Dùng `npm start` trên máy chủ có đĩa lưu trữ bền vững. Đặt HTTPS ở reverse proxy, trỏ DNS về máy chủ và đặt `SECURE_COOKIES=1` trong môi trường chạy thật. Giữ ứng dụng và API cùng tên miền. Đặt `HOST=127.0.0.1` khi proxy và ứng dụng chạy cùng máy, và đặt `TRUST_PROXY=1` khi chạy sau đúng một reverse proxy để giới hạn tần suất tính theo IP thật của khách. Bật nén gzip ở proxy (thư viện 3D khoảng 690KB). Sao lưu SQLite bằng công cụ hỗ trợ sao lưu cơ sở dữ liệu đang hoạt động (chép cả `studio.sqlite`, `-wal`, `-shm`), hoặc dừng tiến trình trước khi sao chép thư mục dữ liệu.
 
 ## Link nhân viên đa kênh

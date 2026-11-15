@@ -1,0 +1,3 @@
+# Not needed on the server: excluded from `git archive` (deploy zip)
+tests/ export-ignore
+.gitattributes export-ignore
