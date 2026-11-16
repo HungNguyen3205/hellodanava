@@ -2,7 +2,10 @@ import {$, api, escape as e, money, option, statusLabels, dateTime} from './ui.j
 
 let user, tab, staff, links, channels, catalog, published, dirty = false, page = 1, preview = false, appFilter = '';
 const appGroups = ['Quản trị Studio','App hội viên','App riêng theo thương hiệu'];
-const tabs = {report:'Tổng quan',links:'Link nhân viên',leads:'Yêu cầu báo giá',catalog:'Gói & module',account:'Tài khoản'};
+const adminTabs = {report:'Tổng quan',links:'Link nhân viên',leads:'Yêu cầu báo giá',catalog:'Gói & module',account:'Tài khoản'};
+// Staff only see the link they share and how far their sharing has got.
+const staffTabs = {links:'Link của tôi',report:'Tiến độ chia sẻ',account:'Tài khoản'};
+const tabsFor = () => isAdmin() ? adminTabs : staffTabs;
 const filters = {days:'30',employee:'',channel:'',plan:''};
 const leadFilters = {employee:'',channel:''};
 const task = (method,body) => ({method,body});
@@ -21,6 +24,8 @@ const empty = (cols,text) => `<tr><td colspan="${cols}" class="muted">${e(text)}
 // "Nam Hưng Zalo" -> "nam-hung-zalo"
 const toSlug = value => String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d')
   .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40).replace(/-+$/,'');
+// Standard share link: hello.danava.vn/?ref=<code>. The old /r/<code> links keep working.
+const refPath = item => '/?ref='+encodeURIComponent(item.slug||item.code);
 const identity = () => user.name+' · '+(isAdmin()?'Quản trị':'Nhân viên');
 
 async function loadLinks() {
@@ -37,7 +42,8 @@ async function start() {
   $('#signin').hidden=true;
   $('#workspace').hidden=false;
   $('#identity').textContent=identity();
-  await navigate('report');
+  $('.admin-head h1').textContent=isAdmin()?'Quản trị báo giá':'Link chia sẻ của tôi';
+  await navigate(isAdmin()?'report':'links');
 }
 async function navigate(next) {
   if (dirty && next!==tab && !confirm('Rời trang và bỏ các chỉnh sửa chưa lưu?')) return;
@@ -45,7 +51,8 @@ async function navigate(next) {
   preview=false;
   tab=next;
   notice('');
-  $('#tabs').innerHTML=Object.entries(tabs).filter(([key])=>key!=='catalog'||isAdmin()).map(([key,label])=>
+  if (!tabsFor()[next]) next=tab=Object.keys(tabsFor())[0];
+  $('#tabs').innerHTML=Object.entries(tabsFor()).map(([key,label])=>
     `<button type="button" data-tab="${key}" aria-pressed="${key===tab}">${label}</button>`).join('');
   await render();
 }
@@ -57,7 +64,7 @@ async function render() {
   }
   if (tab==='links') {
     await loadLinks();
-    return renderLinks();
+    return isAdmin() ? renderLinks() : renderMyLinks();
   }
   if (tab==='leads') return renderLeads();
   if (tab==='catalog') {
@@ -82,7 +89,7 @@ async function renderReport() {
     ['Khách có tương tác',data.engaged],['Yêu cầu báo giá',data.kinds.lead],
     ['Tỷ lệ chuyển đổi',(data.conversion*100).toLocaleString('vi-VN',{maximumFractionDigits:1})+'%']
   ];
-  content.innerHTML=`<div class="filters">
+  content.innerHTML=`${isAdmin()?'':'<h2>Tiến độ chia sẻ của bạn</h2><p class="muted">Số liệu từ link của bạn: bao nhiêu người đã mở, đến từ kênh nào và bao nhiêu yêu cầu báo giá.</p>'}<div class="filters">
     ${filter('days','Thời gian',[[7,'7 ngày'],[30,'30 ngày'],[90,'90 ngày']])}
     ${isAdmin()?filter('employee','Nhân viên',[['','Tất cả'],...staff.map(item=>[item.id,item.name])]):''}
     ${filter('channel','Kênh',[['','Tất cả'],...['Trực tiếp',...channels].map(channel=>[channel,channel])])}
@@ -98,9 +105,27 @@ async function renderReport() {
   <progress max="${sourceTotal||1}" value="${row.views}" aria-label="Lượt truy cập từ ${e(row.channel)}"></progress></div>`).join(''):'<p class="muted">Chưa có dữ liệu trong kỳ.</p>'}</section>
   <section class="panel"><h2>Hoạt động chia sẻ link</h2><dl class="counts"><div><dt>Sao chép link</dt><dd>${data.kinds.copy}</dd></div><div><dt>Bấm chia sẻ</dt><dd>${data.kinds.share}</dd></div></dl>
   <p class="muted">Số thao tác trong admin. Lượt truy cập được ghi nhận khi khách mở trang báo giá.</p></section></div>
-  ${channelMatrix(data)}
+  ${isAdmin()?`${channelMatrix(data)}
   <section class="block"><h2>Hiệu quả theo nhân viên</h2>${wrapTable(head(['Nhân viên','Lượt truy cập','Yêu cầu','Sao chép','Bấm chia sẻ'])+
-    '<tbody>'+(data.staff.map(row=>`<tr><th scope="row">${e(staffName(row.id))}</th><td>${row.views}</td><td>${row.leads}</td><td>${row.copies}</td><td>${row.shares}</td></tr>`).join('') || empty(5,'Chưa có hoạt động.'))+'</tbody>')}</section>`;
+    '<tbody>'+(data.staff.map(row=>`<tr><th scope="row">${e(staffName(row.id))}</th><td>${row.views}</td><td>${row.leads}</td><td>${row.copies}</td><td>${row.shares}</td></tr>`).join('') || empty(5,'Chưa có hoạt động.'))+'</tbody>')}</section>`:''}`;
+}
+// Staff home: the link(s) they share, ready to copy.
+function renderMyLinks() {
+  const mine = links.filter(item=>item.user_id===user.id);
+  content.innerHTML=`<p class="muted my-link-intro">Gửi link này cho khách qua Zalo, Facebook, Messenger, TikTok, Instagram, Threads, YouTube… Hệ thống tự ghi nhận khách đến từ đâu và tính cho bạn. Xem kết quả ở tab <b>Tiến độ chia sẻ</b>.</p>
+  ${mine.length?mine.map(item=>{
+    const path=refPath(item);
+    return `<section class="panel my-link">
+      <span class="eyebrow">${item.channel==='Đa kênh'?'Dùng cho mọi mạng xã hội':'Kênh '+e(item.channel)}</span>
+      <a class="my-link-url" href="${e(path)}" target="_blank" rel="noopener">${e(location.host+path)}</a>
+      ${item.active?`<div class="actions my-link-actions">
+        <button class="primary" data-act="copy" data-code="${e(item.code)}" data-path="${e(path)}">Sao chép link</button>
+        <button data-act="copy" data-code="${e(item.code)}" data-path="${e(path)}&utm_source=qr" title="Dùng khi in mã QR, tờ rơi">Link cho mã QR</button>
+        ${navigator.share?`<button data-act="share" data-code="${e(item.code)}" data-path="${e(path)}">Chia sẻ</button>`:''}
+      </div>`:'<p class="notice error">Link đang tạm tắt. Liên hệ quản trị DANAVA để bật lại.</p>'}
+      <form data-form="slug" data-code="${e(item.code)}" class="slug-form"><input name="slug" value="${e(item.slug||'')}" maxlength="40" placeholder="Đặt mã dễ nhớ, VD: 006" aria-label="Mã dễ nhớ cho link của bạn"><button class="small-button">Lưu mã</button></form>
+      <small>Mã gồm chữ không dấu, số hoặc dấu gạch, ví dụ <b>006</b>. Đổi mã thì link cũ ngừng được tính, nên đặt một lần rồi giữ cố định.</small>
+    </section>`;}).join(''):'<section class="panel"><p class="muted">Bạn chưa được cấp link. Liên hệ quản trị DANAVA để được cấp.</p></section>'}`;
 }
 // Staff x social network: where each person's customers actually came from.
 function channelMatrix(data) {
@@ -134,14 +159,14 @@ function renderLinks() {
   <p class="muted">Đặt mã dễ nhớ cho link: chữ không dấu, số hoặc dấu gạch ngang, ví dụ <b>006</b> hay <b>nam-zalo</b>. Đổi mã thì link mã cũ ngừng hoạt động, nhưng số liệu đã ghi nhận vẫn giữ nguyên.</p></div>
   ${wrapTable(head(['Nhân viên','Kênh','Link','Trạng thái','Thao tác'])+'<tbody>'+
     (links.map(item=>{
-      const path='/r/'+(item.slug||item.code);
+      const path=refPath(item);
       return `<tr data-search="${e([staffName(item.user_id),item.channel,item.slug,item.code].join(' ').toLowerCase())}"><th scope="row">${e(staffName(item.user_id))}</th><td>${item.channel==='Đa kênh'?'Tất cả mạng xã hội':e(item.channel)}</td>
-    <td><a class="link-path" href="${e(path)}" target="_blank" rel="noopener">${e(path)}</a>
+    <td><a class="link-path" href="${e(path)}" target="_blank" rel="noopener">${e(location.host+path)}</a>
     <form data-form="slug" data-code="${e(item.code)}" class="slug-form"><input name="slug" value="${e(item.slug||'')}" maxlength="40" placeholder="Đặt mã, VD: 006" aria-label="Mã dễ nhớ cho link ${e(staffName(item.user_id))} · ${e(item.channel)}"><button class="small-button">Lưu mã</button></form></td>
     <td>${item.active?'Đang bật':'Đã tắt'}</td>
     <td><div class="actions">
     ${item.active?`<button data-act="copy" data-code="${e(item.code)}" data-path="${e(path)}">Sao chép</button>
-      <button data-act="copy" data-code="${e(item.code)}" data-path="${e(path)}/qr" title="Dùng khi in mã QR, tờ rơi">Link QR</button>
+      <button data-act="copy" data-code="${e(item.code)}" data-path="${e(path)}&utm_source=qr" title="Dùng khi in mã QR, tờ rơi">Link QR</button>
       ${navigator.share?`<button data-act="share" data-code="${e(item.code)}" data-path="${e(path)}">Chia sẻ</button>`:''}`:''}
     ${isAdmin()?`<button data-act="toggle-link" data-code="${e(item.code)}" data-active="${!item.active}">${item.active?'Tắt':'Bật'}</button>`:''}
     </div></td></tr>`;}).join('') || empty(5,'Chưa có link được cấp.'))+'</tbody>')}
@@ -163,73 +188,130 @@ async function renderLeads() {
       <summary>${e(row.quote.plan)} · ${row.quote.term} tháng</summary><small>Giá gói ${money(row.quote.base)}</small>
       ${row.quote.items.map(item=>`<small>${e(item.name)} × ${item.quantity} · ${money(item.total)}</small>`).join('')}
       </details><b>${money(row.quote.subtotal)}</b>${row.quote.needsReview?'<small>Cần tư vấn thêm</small>':''}</td>
-      <td>${e(row.channel)}<small>${e(row.employee||'Chưa phân công')}${row.link?' · /r/'+e(row.link):''}</small></td><td>${dateTime(row.created)}</td>
+      <td>${e(row.channel)}<small>${e(row.employee||'Chưa phân công')}${row.link?' · ?ref='+e(row.link):''}</small></td><td>${dateTime(row.created)}</td>
       <td><select aria-label="Trạng thái của ${e(row.business)}" data-lead="${e(row.id)}">${statuses.map(s=>option(s,s,s===row.status)).join('')}</select></td></tr>`).join('') ||
       empty(5,'Chưa có yêu cầu báo giá.'))+'</tbody>')}
     <div class="section-bar"><button class="small-button" data-act="previous" ${page===1?'disabled':''}>Trang trước</button>
     <span>Trang ${page}</span><button class="small-button" data-act="next" ${hasNext?'':'disabled'}>Trang sau</button></div>`;
 }
-function catalogInput(kind, id, key, title, value, type='text', limit=100) {
-  return `<input aria-label="${e(title)}" data-${kind}="${e(id)}" data-field="${key}" type="${type}"
-    value="${e(value)}" ${type==='number'?'min="0" max="10000000000" step="1" placeholder="Liên hệ"':`maxlength="${limit}"`}>`;
+function catalogInput(kind, id, key, title, value, type='text', limit=100, extra='') {
+  return `<input aria-label="${e(title)}" data-${kind}="${e(id)}" data-field="${key}" type="${type}" ${extra}
+    value="${e(value)}" ${type==='number'?'min="0" max="10000000000" step="1" placeholder="Để trống = Liên hệ"':`maxlength="${limit}"`}>`;
+}
+// ---------- "Gói & module" editor ----------
+const STATE_FLOW = ['included','extra','contact','off','hidden'];
+const STATE_TEXT = {included:'Có sẵn', extra:'Mua thêm', contact:'Liên hệ', off:'Chưa có', hidden:'Ẩn'};
+const termLabel = months => months===1 ? '1 tháng' : months%12===0 && months>12 ? `${months} tháng (${months/12} năm)` : `${months} tháng`;
+const priceHint = (value, months) => value===null||value===undefined ? 'Trang báo giá hiện "Liên hệ"'
+  : value===0 ? 'Miễn phí' : months===1 ? money(value)+' / tháng' : `${money(value)} · ≈ ${money(Math.round(value/months))}/tháng`;
+function markDirty() {
+  dirty=true;
+  const badge=$('.draft-state');
+  if (badge) { badge.textContent='● Có thay đổi chưa lưu'; badge.classList.add('is-dirty'); }
 }
 function renderCatalog() {
+  const terms=catalog.terms;
   if (preview) {
     content.innerHTML=`<div class="section-bar"><h2>Xem trước bản nháp</h2><button class="small-button" data-act="preview">Quay lại chỉnh sửa</button></div>
-    <div class="cards preview-cards">${catalog.plans.map(p=>`<div class="card ${p.featured?'featured':''}"><h3>${e(p.name)}</h3><p>${e(p.description)}</p>
-      ${[6,12,24].map(t=>`<p>${t} tháng · ${money(p.prices[t])}</p>`).join('')}</div>`).join('')}</div>
+    <div class="cards preview-cards">${catalog.plans.map(p=>`<div class="card ${p.featured?'featured':''}"><h3>${e(p.name)}</h3><p class="desc">${e(p.description)}</p>
+      ${terms.map(t=>`<p class="preview-price"><span>${termLabel(t)}</span><b>${p.prices[t]===null?'Liên hệ':p.prices[t]===0?'Miễn phí':money(p.prices[t])}</b></p>`).join('')}</div>`).join('')}</div>
     ${wrapTable(head(['Module',...catalog.plans.map(p=>p.name)])+'<tbody>'+catalog.modules
       .filter(m=>Object.values(m.plans).some(s=>s!=='hidden')).map(m=>`<tr><th scope="row">${e(m.name)}<small>${e(m.description)}</small></th>
-      ${catalog.plans.map(p=>`<td>${m.plans[p.id]==='hidden'?'—':statusLabels[m.plans[p.id]]}</td>`).join('')}</tr>`).join('')+'</tbody>')}`;
+      ${catalog.plans.map(p=>`<td><span class="state-chip s-${m.plans[p.id]}">${m.plans[p.id]==='hidden'?'—':STATE_TEXT[m.plans[p.id]]}</span></td>`).join('')}</tr>`).join('')+'</tbody>')}`;
     return;
   }
-  content.innerHTML=`<div class="section-bar"><h2>Gói & module</h2><div class="actions">
-  <button class="small-button" data-act="preview">Xem trước</button><button class="small-button" data-act="save">Lưu bản nháp</button>
-  <button class="primary" data-act="publish">Xuất bản</button></div></div>
-  <div class="cards plan-editor">${catalog.plans.map(p=>`<section class="panel"><h3>${e(p.name)}</h3>
-    ${[['name','Tên gói',60],['description','Mô tả',300],['members','Hội viên',50],['staff','Nhân sự',50],['branches','Chi nhánh',50]].map(([key,title,max])=>
-      `<label>${title}${catalogInput('plan',p.id,key,title,p[key],'text',max)}</label>`).join('')}
-    ${[6,12,24].map(t=>`<label>Giá ${t} tháng${catalogInput('plan',p.id,String(t),'Giá '+t+' tháng',p.prices[t],'number')}</label>`).join('')}
-    <label class="toggle"><input type="checkbox" data-plan="${e(p.id)}" data-field="featured" ${p.featured?'checked':''}> Gói nổi bật</label></section>`).join('')}</div>
-  <div class="section-bar"><h3>Module theo gói</h3><button class="small-button" data-act="add-module">+ Thêm module</button></div>
-  <label class="app-filter">Lọc theo app<select id="app-filter">${option('','Tất cả app',!appFilter)}${appGroups.map(group=>option(group,group,appFilter===group)).join('')}</select></label>
-  <p class="muted">Tick để bật module trong từng gói. Dùng menu bên cạnh để chọn mở bán thêm, liên hệ hoặc ẩn.</p>
-  ${wrapTable(head(['Module',...catalog.plans.map(p=>p.name),'Thao tác'])+'<tbody>'+catalog.modules.filter(m=>!appFilter||m.app===appFilter).map(m=>`<tr>
-    <td class="module-fields">
-    ${catalogInput('module',m.id,'name','Tên module',m.name)}
-    ${catalogInput('module',m.id,'description','Mô tả module',m.description,'text',300)}
-    <select aria-label="App" data-module="${e(m.id)}" data-field="app">${appGroups.map(group=>option(group,group,m.app===group)).join('')}</select>
-    <div class="actions">${catalogInput('module',m.id,'price','Giá mua thêm',m.price,'number')}
-    <select aria-label="Đơn vị tính" data-module="${e(m.id)}" data-field="unit">${option('once','Theo lần',m.unit==='once')}${option('month','Theo tháng',m.unit==='month')}</select></div>
-    </td>${catalog.plans.map(p=>`<td><label class="toggle centered"><input type="checkbox" aria-label="Bật ${e(m.name)} cho ${e(p.name)}"
-      data-module="${e(m.id)}" data-state="${e(p.id)}" ${m.plans[p.id]==='included'?'checked':''}></label>
-      <select aria-label="Trạng thái ${e(m.name)} trong ${e(p.name)}" data-module="${e(m.id)}" data-state="${e(p.id)}">
-      ${Object.entries(statusLabels).map(([key,label])=>option(key,key==='off'?'Chưa có':label,m.plans[p.id]===key)).join('')}</select></td>`).join('')}
-    <td><button class="small-button" data-act="remove-module" data-id="${e(m.id)}">Xóa</button></td></tr>`).join('')+'</tbody>')}`;
+  const modules=catalog.modules.filter(m=>!appFilter||m.app===appFilter);
+  content.innerHTML=`<div class="section-bar cat-toolbar"><div><h2>Gói & module</h2>
+    <p class="muted">Mọi chỉnh sửa nằm trong bản nháp. Bấm <b>Xuất bản</b> để cập nhật trang báo giá.</p></div>
+    <div class="actions"><span class="draft-state ${dirty?'is-dirty':''}">${dirty?'● Có thay đổi chưa lưu':'✓ Đã lưu'}</span>
+    <button class="small-button" data-act="preview">Xem trước</button><button class="small-button" data-act="save">Lưu bản nháp</button>
+    <button class="primary" data-act="publish">Xuất bản</button></div></div>
+
+  <section class="panel cat-block">
+    <div class="cat-head"><h3><span class="step-n">1</span>Kỳ hạn thanh toán</h3>
+    <p class="muted">Các kỳ hạn khách chọn trên trang báo giá. Thêm hoặc xóa kỳ hạn, rồi nhập giá cho từng gói ở bước 2.</p></div>
+    <div class="term-list">${terms.map(t=>`<span class="term-chip"><b>${termLabel(t)}</b>
+      <button type="button" data-act="remove-term" data-months="${t}" aria-label="Xóa kỳ hạn ${t} tháng" ${terms.length<2?'disabled title="Cần ít nhất 1 kỳ hạn"':''}>✕</button></span>`).join('')}</div>
+    <div class="term-add-row">
+      <form data-form="term" class="term-add"><input name="months" type="number" min="1" max="60" step="1" required placeholder="Số tháng, VD: 1" aria-label="Số tháng của kỳ hạn mới">
+      <button class="small-button" ${terms.length>=8?'disabled':''}>+ Thêm kỳ hạn</button></form>
+      <div class="term-quick"><span class="muted">Thêm nhanh:</span>${[1,3,6,12,24,36].filter(t=>!terms.includes(t)).map(t=>
+        `<button type="button" class="chip-btn" data-act="add-term" data-months="${t}" ${terms.length>=8?'disabled':''}>+ ${termLabel(t)}</button>`).join('') || '<span class="muted">đã có đủ</span>'}</div>
+    </div>
+  </section>
+
+  <section class="cat-block">
+    <div class="cat-head"><h3><span class="step-n">2</span>Gói phần mềm & giá</h3>
+    <p class="muted">Nhập giá trọn kỳ cho từng kỳ hạn. Để trống ô giá thì trang báo giá hiện <b>Liên hệ</b>; nhập 0 là <b>Miễn phí</b>.</p></div>
+    <div class="plan-grid">${catalog.plans.map(p=>`<article class="panel plan-edit ${p.featured?'is-featured':''}">
+      <div class="plan-edit-top">${catalogInput('plan',p.id,'name','Tên gói',p.name,'text',60,'class="plan-name"')}
+        <label class="star-toggle" title="Gói được làm nổi bật trên trang báo giá"><input type="checkbox" data-plan="${e(p.id)}" data-field="featured" ${p.featured?'checked':''}><span>★ Nổi bật</span></label></div>
+      <label>Mô tả${catalogInput('plan',p.id,'description','Mô tả',p.description,'text',300)}</label>
+      <div class="limits">${[['members','Hội viên'],['staff','Nhân sự'],['branches','Chi nhánh']].map(([key,title])=>
+        `<label>${title}${catalogInput('plan',p.id,key,title,p[key],'text',50)}</label>`).join('')}</div>
+      <div class="price-rows">${terms.map(t=>`<div class="price-row"><span class="term-tag">${termLabel(t)}</span>
+        ${catalogInput('plan',p.id,String(t),`Giá ${t} tháng của ${p.name}`,p.prices[t],'number')}
+        <small class="price-hint">${priceHint(p.prices[t],t)}</small></div>`).join('')}</div>
+    </article>`).join('')}</div>
+  </section>
+
+  <section class="panel cat-block">
+    <div class="cat-head row"><div><h3><span class="step-n">3</span>Module theo gói</h3>
+      <p class="muted">Bấm vào ô để đổi trạng thái: Có sẵn → Mua thêm → Liên hệ → Chưa có → Ẩn.</p></div>
+      <div class="actions"><select id="app-filter" aria-label="Lọc theo app">${option('','Tất cả app',!appFilter)}${appGroups.map(group=>option(group,group,appFilter===group)).join('')}</select>
+      <button class="small-button" data-act="add-module">+ Thêm module</button></div></div>
+    <div class="state-legend">${STATE_FLOW.map(state=>`<span class="state-chip s-${state}">${STATE_TEXT[state]}</span>`).join('')}</div>
+    ${wrapTable(head(['Module',...catalog.plans.map(p=>p.name),''])+'<tbody>'+(modules.map(m=>`<tr>
+      <td class="module-fields">
+        ${catalogInput('module',m.id,'name','Tên module',m.name,'text',100,'class="module-name"')}
+        ${catalogInput('module',m.id,'description','Mô tả module',m.description,'text',300,'placeholder="Mô tả ngắn"')}
+        <div class="module-meta">
+          <select aria-label="App" data-module="${e(m.id)}" data-field="app">${appGroups.map(group=>option(group,group,m.app===group)).join('')}</select>
+          ${catalogInput('module',m.id,'price','Giá mua thêm',m.price,'number')}
+          <select aria-label="Đơn vị tính" data-module="${e(m.id)}" data-field="unit">${option('once','/ lần',m.unit==='once')}${option('month','/ tháng',m.unit==='month')}</select>
+        </div></td>
+      ${catalog.plans.map(p=>`<td class="state-cell"><button type="button" class="state-chip s-${m.plans[p.id]}" data-act="cycle-state" data-id="${e(m.id)}" data-plan="${e(p.id)}"
+        aria-label="${e(m.name)} trong ${e(p.name)}: ${STATE_TEXT[m.plans[p.id]]}. Bấm để đổi">${STATE_TEXT[m.plans[p.id]]}</button></td>`).join('')}
+      <td><button type="button" class="icon-btn danger" data-act="remove-module" data-id="${e(m.id)}" aria-label="Xóa module ${e(m.name)}">Xóa</button></td></tr>`).join('')
+      || empty(catalog.plans.length+2,'Chưa có module trong nhóm này.'))+'</tbody>')}
+  </section>`;
+}
+function addTerm(months) {
+  months=Number(months);
+  if (!Number.isInteger(months) || months<1 || months>60) return notice('Kỳ hạn phải là số tháng nguyên từ 1 đến 60.',true);
+  if (catalog.terms.includes(months)) return notice(`Đã có kỳ hạn ${months} tháng.`,true);
+  if (catalog.terms.length>=8) return notice('Tối đa 8 kỳ hạn.',true);
+  catalog.terms=[...catalog.terms,months].sort((a,b)=>a-b);
+  catalog.plans.forEach(p=>{p.prices[months]=null;});
+  markDirty();
+  renderCatalog();
+  notice(`Đã thêm kỳ hạn ${termLabel(months)}. Nhập giá cho từng gói ở bước 2 (để trống = Liên hệ).`);
 }
 async function save() {
   catalog=await api('/admin/catalog',task('PUT',catalog));
   dirty=false;
 }
 function editCatalog(target) {
-  const {plan, module:id, field, state}=target.dataset;
+  const {plan, module:id, field}=target.dataset;
   if (plan) {
     const p=catalog.plans.find(item=>item.id===plan);
     if (field==='featured') {
       if (target.checked) catalog.plans.forEach(item=>{item.featured=item.id===plan;});
       else p.featured=false;
-      renderCatalog();
-    } else if (target.type==='number') p.prices[field]=target.value===''?null:Number(target.value);
-    else p[field]=target.value;
+      markDirty();
+      return renderCatalog();
+    }
+    if (target.type==='number') {
+      p.prices[field]=target.value===''?null:Number(target.value);
+      const hint=target.closest('.price-row')?.querySelector('.price-hint');
+      if (hint) hint.textContent=priceHint(p.prices[field],Number(field));
+    } else p[field]=target.value;
   }
   if (id) {
     const m=catalog.modules.find(item=>item.id===id);
-    if (state) {
-      m.plans[state]=target.type==='checkbox'?(target.checked?'included':'off'):target.value;
-      renderCatalog();
-    } else m[field]=target.type==='number'?(target.value===''?null:Number(target.value)):target.value;
+    m[field]=target.type==='number'?(target.value===''?null:Number(target.value)):target.value;
   }
-  if (plan||id) dirty=true;
+  if (plan||id) markDirty();
 }
 async function action(button) {
   const {act,id,code,active}=button.dataset;
@@ -256,18 +338,40 @@ async function action(button) {
   if (act==='save'||act==='publish') {
     if (dirty) await save();
     if (act==='publish') await api('/admin/publish',task('POST',{version:catalog.version}));
-    notice(act==='save'?'Đã lưu bản nháp.':'Đã cập nhật trang báo giá.');
+    const badge=$('.draft-state');
+    if (badge) { badge.textContent='✓ Đã lưu'; badge.classList.remove('is-dirty'); }
+    notice(act==='save'?'Đã lưu bản nháp.':'Đã xuất bản: trang báo giá đã cập nhật.');
+  }
+  if (act==='add-term') addTerm(button.dataset.months);
+  if (act==='remove-term') {
+    const months=Number(button.dataset.months);
+    if (catalog.terms.length<2) return notice('Cần giữ ít nhất 1 kỳ hạn.',true);
+    if (confirm(`Xóa kỳ hạn ${termLabel(months)}? Giá của kỳ hạn này ở mọi gói sẽ bị xóa khỏi bản nháp.`)) {
+      catalog.terms=catalog.terms.filter(t=>t!==months);
+      catalog.plans.forEach(p=>{delete p.prices[months];});
+      markDirty();
+      renderCatalog();
+    }
+  }
+  if (act==='cycle-state') {
+    const m=catalog.modules.find(item=>item.id===id);
+    const next=STATE_FLOW[(STATE_FLOW.indexOf(m.plans[button.dataset.plan])+1)%STATE_FLOW.length];
+    m.plans[button.dataset.plan]=next;
+    button.className='state-chip s-'+next;
+    button.textContent=STATE_TEXT[next];
+    button.setAttribute('aria-label',button.getAttribute('aria-label').replace(/: [^.]+\./, ': '+STATE_TEXT[next]+'.'));
+    markDirty();
   }
   if (act==='add-module') {
     catalog.modules.push({id:crypto.randomUUID(),name:'Module mới',description:'',app:appFilter||appGroups[0],price:null,unit:'once',
       plans:Object.fromEntries(catalog.plans.map(p=>[p.id,'off']))});
-    dirty=true;
+    markDirty();
     renderCatalog();
-    content.querySelector('tr:last-child input')?.focus();
+    content.querySelector('.cat-block tbody tr:last-child .module-name')?.focus();
   }
   if (act==='remove-module' && confirm('Xóa module khỏi bản nháp?')) {
     catalog.modules=catalog.modules.filter(item=>item.id!==id);
-    dirty=true;
+    markDirty();
     renderCatalog();
   }
 }
@@ -341,12 +445,13 @@ content.addEventListener('change',async ev=>{
       catch (error) { await renderLeads(); throw error; }
       notice('Đã đổi trạng thái.');
     }
-    if (tab==='catalog' && target.matches('input[type=checkbox],select')) editCatalog(target);
+    if (tab==='catalog' && target.matches('input[type=checkbox],select[data-module]')) editCatalog(target);
   } catch(error) {errorNotice(error);}
 });
 content.addEventListener('submit',async ev=>{
   ev.preventDefault();
   const form=ev.target;
+  if (form.dataset.form==='term') { addTerm(new FormData(form).get('months')); return; }
   const button=$('button',form);
   const data=fields(form);
   button.disabled=true;
@@ -362,4 +467,36 @@ content.addEventListener('submit',async ev=>{
   finally {button.disabled=false;}
 });
 addEventListener('beforeunload',ev=>{if(dirty){ev.preventDefault();ev.returnValue='';}});
-start().catch(errorNotice);
+// Live updates: every few seconds ask the server whether anything happened (visit, lead, copy, share).
+// When it did, redraw the open tab. Skipped while the browser tab is hidden or the user is typing.
+const LIVE_TABS = ['report','links','leads'];
+let pulse = null, pulsing = false;
+function liveBadge(text) {
+  let badge = $('#live');
+  if (!badge) {
+    $('.admin-head > div').insertAdjacentHTML('beforeend','<p class="live" id="live" role="status"></p>');
+    badge = $('#live');
+  }
+  badge.textContent = text;
+}
+async function heartbeat() {
+  if (pulsing || !user || document.hidden || !LIVE_TABS.includes(tab)) return;
+  pulsing = true;
+  try {
+    const {stamp} = await api('/admin/pulse');
+    const typing = content.contains(document.activeElement) && document.activeElement.matches('input, select, textarea');
+    if (pulse !== null && stamp !== pulse) {
+      if (typing || dirty) return; // keep the old stamp so the redraw happens on a later beat
+      await render();
+    }
+    pulse = stamp;
+    liveBadge('Cập nhật trực tiếp · ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+  } catch (error) {
+    if (error.status===401) return errorNotice(error);
+    liveBadge('Mất kết nối, đang thử lại…');
+  } finally { pulsing = false; }
+}
+setInterval(heartbeat, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) heartbeat(); });
+
+start().then(heartbeat).catch(errorNotice);

@@ -1,4 +1,11 @@
-export const terms = [6, 12, 24];
+// Billing terms (months) are editable in the admin and stored in the catalog itself.
+// Catalogs saved before terms were editable fall back to these.
+export const DEFAULT_TERMS = [6, 12, 24];
+export const terms = DEFAULT_TERMS;
+export const MAX_TERMS = 8;
+export const validTerms = list => Array.isArray(list) && list.length >= 1 && list.length <= MAX_TERMS &&
+  list.every(t => Number.isInteger(t) && t >= 1 && t <= 60) && new Set(list).size === list.length;
+export const termsOf = catalog => validTerms(catalog?.terms) ? [...catalog.terms].sort((a, b) => a - b) : DEFAULT_TERMS;
 export const channels = ['Zalo', 'Facebook', 'Messenger', 'TikTok', 'Instagram', 'Threads', 'YouTube', 'Google', 'QR', 'Khác'];
 // A staff link that is not tied to one network; the visit's network is detected per click.
 export const ANY_CHANNEL = 'Đa kênh';
@@ -6,6 +13,7 @@ export const models = ['Gym', 'Yoga', 'Pilates', 'Bể bơi', 'Spa'];
 export const apps = ['Quản trị Studio', 'App hội viên', 'App riêng theo thương hiệu'];
 export const states = ['off', 'included', 'extra', 'contact', 'hidden'];
 export const seed = {
+  terms: DEFAULT_TERMS,
   plans: [
     ['start', 'Khởi đầu', 'Quản lý phòng tập nhỏ với các tính năng cơ bản.', 0, '50', '2', '1'],
     ['pro', 'Pro', 'Tự động hóa vận hành và bán gói tập.', 5000000, '1.000', '10', '1'],
@@ -41,7 +49,7 @@ export const seed = {
 
 export function quote(catalog, selection) {
   const plan = catalog.plans.find(({id}) => id === selection.plan);
-  if (!plan || !terms.includes(selection.term) || !Array.isArray(selection.extras) ||
+  if (!plan || !termsOf(catalog).includes(selection.term) || !Array.isArray(selection.extras) ||
     selection.extras.length > catalog.modules.length) return null;
   const items = [];
   for (const item of selection.extras) {

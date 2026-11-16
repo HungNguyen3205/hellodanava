@@ -150,7 +150,7 @@ describe('One link per staff, channel detected per visit', () => {
     const tt = await list(admin, 'channel=TikTok');
     assert.ok(tt.length >= 2 && tt.every(r => r.channel === 'TikTok'));
     assert.ok((await list(admin, 'channel=TikTok&employee=' + staffId)).every(r => r.employee === 'Hưng'));
-    assert.equal((await list(staff, 'channel=Facebook')).length, fb.length, 'staff can filter their own leads');
+    assert.equal((await call(staff, '/admin/leads?channel=Facebook')).status, 403, 'staff have no customer lead list');
     assert.ok((await list(admin, 'channel=bogus')).length >= fb.length + tt.length, 'unknown channel is ignored');
   });
 
@@ -185,5 +185,64 @@ describe('One link per staff, channel detected per visit', () => {
     assert.equal(count(after, 'TikTok') - count(before, 'TikTok'), 1);
     assert.equal(count(after, 'YouTube') - count(before, 'YouTube'), 1);
     assert.equal(count(after, 'Instagram') - count(before, 'Instagram'), 1);
+  });
+});
+
+describe('Standard affiliate link hello.danava.vn/?ref=<code>', () => {
+  let server, admin, staffId;
+  const call = (cookie, path, method = 'GET', body, headers = {}) => fetch(`${server.baseUrl}/api${path}`, {
+    method, headers: { ...(cookie ? { Cookie: cookie } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers },
+    ...(body ? { body: JSON.stringify(body) } : {}) });
+  // A visit that lands directly on /?ref=... (no /r/ redirect, so no "via" cookie): the page sends its query string.
+  const land = (query, userAgent = 'Mozilla/5.0 Chrome/120', referrer = '') => call(null, '/events', 'POST',
+    { kind: 'view', ref: new URLSearchParams(query).get('ref'), referrer, query },
+    { Cookie: 'visitor=' + randomUUID(), 'User-Agent': userAgent });
+  const channels = async () => {
+    const row = (await (await call(admin, '/admin/reports?days=7')).json()).staffChannels.find(r => r.id === staffId);
+    return Object.fromEntries(Object.entries(row?.channels || {}).map(([k, v]) => [k, v.views]));
+  };
+
+  before(async () => {
+    server = await startServer({ port: 3989 });
+    admin = (await call(null, '/login', 'POST', { email: server.adminEmail, password: server.adminPassword })).headers.get('set-cookie').split(';')[0];
+    await call(admin, '/admin/users', 'POST', { name: 'Ref', email: 'ref@test.local', password: 'staff-password-123' });
+    staffId = (await (await call(admin, '/admin/links')).json()).staff.find(s => s.email === 'ref@test.local').id;
+    const code = (await (await call(admin, '/admin/links', 'POST', { employee: staffId })).json()).code;
+    await call(admin, '/admin/link-slug', 'POST', { code, slug: '006' });
+  });
+  after(async () => { await server?.stop(); });
+
+  it('credits the staff member and reads utm_source, Zalo marker and platform click ids', async () => {
+    await land('?ref=006&utm_source=tiktok');
+    await land('?ref=006&utm_source=qr');
+    await land('?ref=006&zarsrc=31');
+    await land('?ref=006&fbclid=abc');
+    await land('?ref=006&ttclid=xyz');
+    await land('?ref=006', 'Mozilla/5.0 Zalo iOS');
+    await land('?ref=006');
+    assert.deepEqual(await channels(), { TikTok: 2, QR: 1, Zalo: 2, Facebook: 1, 'Khác': 1 });
+  });
+
+  it('is case-insensitive and ignores unknown codes', async () => {
+    const total = async () => Object.values(await channels()).reduce((a, b) => a + b, 0);
+    const before = await total();
+    const { links } = await (await call(admin, '/admin/links')).json();
+    const code = links.find(l => l.slug === '006').code;
+    await call(admin, '/admin/link-slug', 'POST', { code, slug: 'nam-ref' });
+    await land('?ref=NAM-REF');                      // typed in capitals
+    await land('?ref=khong-ton-tai&utm_source=tiktok'); // unknown code: not credited to anyone
+    await call(admin, '/admin/link-slug', 'POST', { code, slug: '006' });
+    assert.equal(await total(), before + 1, 'only the valid code is credited');
+  });
+
+  it('a lead from ?ref=006&utm_source=zalo is credited with channel Zalo', async () => {
+    const { version } = await (await call(null, '/catalog')).json();
+    const res = await call(null, '/leads', 'POST', { id: randomUUID(), name: 'Khách', business: 'Gym Ref', phone: '0900000099',
+      model: 'Gym', plan: 'pro', term: 12, extras: [], version, ref: '006', query: '?ref=006&utm_source=zalo' });
+    assert.equal(res.status, 201);
+    const { items } = await (await call(admin, '/admin/leads')).json();
+    assert.equal(items[0].channel, 'Zalo');
+    assert.equal(items[0].employee, 'Ref');
+    assert.equal(items[0].link, '006');
   });
 });

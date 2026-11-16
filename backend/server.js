@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { channelKeys, keyOf, detectChannel, resolveChannel, taggedChannel, clickIdChannel } from './channel.js';
 import { db, bootstrap, catalog, hashPassword, matches } from './db.js';
-import { apps, channels, models, quote, states, terms, ANY_CHANNEL } from './catalog.js';
+import { apps, channels, models, quote, states, termsOf, validTerms, ANY_CHANNEL } from './catalog.js';
 import { attribution, events, leadStatuses, report } from './analytics.js';
 
 const dev = process.argv.includes('--dev');
@@ -17,6 +17,16 @@ const clientIp = req => {
   return forwarded ? forwarded.split(',').at(-1).trim() || req.socket.remoteAddress : req.socket.remoteAddress;
 };
 const port = Number(process.env.PORT || 3000);
+const VIEW_WINDOW = 30 * 60 * 1000;
+// Private/loopback addresses mean the real client IP is hidden (e.g. behind a proxy without TRUST_PROXY):
+// then every visitor would share one IP, so IP-based de-duplication is skipped rather than merging real people.
+const ipKey = address => !address || /^(127\.|::1$|::ffff:127\.|10\.|::ffff:10\.|192\.168\.|::ffff:192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::ffff:172\.(1[6-9]|2\d|3[01])\.|f[cd][0-9a-f]{2}:)/i.test(address)
+  ? null : createHash('sha256').update('hello-danava/' + address).digest('hex').slice(0, 32);
+const recentView = db.prepare(`SELECT 1 FROM events WHERE kind='view' AND created>? AND code IS ?
+  AND (visitor=? OR (? IS NOT NULL AND ip=?)) LIMIT 1`);
+const insertEvent = db.prepare('INSERT INTO events(kind,visitor,code,channel,plan,created,ip) VALUES(?,?,?,?,?,?,?)');
+// Query string of the page the visitor landed on (?ref=006&utm_source=tiktok&fbclid=...), sent by the page.
+const landing = data => new URLSearchParams(typeof data.query === 'string' ? data.query.slice(0,1000) : '');
 const tokenHash = token => createHash('sha256').update(token).digest('hex');
 const anonymous = randomUUID;
 const cookies = req => Object.fromEntries((req.headers.cookie || '').split(';').map(part => {
@@ -73,6 +83,8 @@ function cleanDraft(data) {
   const previous = catalog('draft');
   if (!Array.isArray(data.plans) || !Array.isArray(data.modules) || data.modules.length > 200 ||
       data.plans.length !== previous.plans.length) fail(400, 'Cấu hình gói không hợp lệ.');
+  if (!validTerms(data.terms)) fail(400, 'Kỳ hạn không hợp lệ: cần 1–8 kỳ hạn, mỗi kỳ 1–60 tháng, không trùng nhau.');
+  const terms = [...data.terms].sort((a, b) => a - b);
   const plans = previous.plans.map(old => {
     const p = data.plans.find(p => p?.id === old.id);
     if (!p || !requireText(p.name,60) || !requireText(p.description,300) ||
@@ -93,7 +105,7 @@ function cleanDraft(data) {
     return {id:m.id,name:m.name,description:m.description,app:m.app,price:m.price,unit:m.unit,
       plans:Object.fromEntries(plans.map(p => [p.id,m.plans[p.id]]))};
   });
-  return {plans, modules};
+  return {terms, plans, modules};
 }
 const assets = {
   '/': ['index.html','text/html'], '/admin': ['admin.html','text/html'],
@@ -152,18 +164,22 @@ const server = createServer(async (req, res) => {
       return res.end();
     }
     if (method === 'GET' && path === '/api/catalog')
-      return json(res,200,{...catalog('published'), models, apps, terms});
+      return (published => json(res,200,{...published, models, apps, terms: termsOf(published)}))(catalog('published'));
     if (method === 'POST' && path === '/api/events') {
       const data = await body(req);
       const maxEvents = 600;
       limit('events:'+ip,maxEvents,60000);
+      // Not counted: bots/link previews, and anyone logged in to the sales portal (staff opening their own link).
       if (!/bot|crawl|preview|facebookexternalhit|crawling/i.test(req.headers['user-agent'] || '') &&
-          ['view','interaction'].includes(data.kind)) {
+          !user && ['view','interaction'].includes(data.kind)) {
         const link = attribution(data.ref);
         const plan = catalog('published').plans.some(p => p.id === data.plan) ? data.plan : null;
         const channel = resolveChannel({link, viaKey: jar.via, userAgent: req.headers['user-agent'],
-          referrer: typeof data.referrer === 'string' ? data.referrer.slice(0,500) : ''});
-        events.run(data.kind,visitor,link?.code ?? null,channel,plan,Date.now());
+          referrer: typeof data.referrer === 'string' ? data.referrer.slice(0,500) : '', params: landing(data)});
+        const now = Date.now(), code = link?.code ?? null, who = ipKey(ip);
+        // Reloading does not inflate views: one view per browser (or per public IP) per link every 30 minutes.
+        if (data.kind !== 'view' || !recentView.get(now - VIEW_WINDOW, code, visitor, who, who))
+          insertEvent.run(data.kind,visitor,code,channel,plan,now,who);
       }
       return json(res,200,{},visitorHeader);
     }
@@ -183,7 +199,7 @@ const server = createServer(async (req, res) => {
         const link = attribution(data.ref);
         const code = link?.code ?? null;
         const channel = resolveChannel({link, viaKey: jar.via, userAgent: req.headers['user-agent'],
-          referrer: typeof data.referrer === 'string' ? data.referrer.slice(0,500) : ''});
+          referrer: typeof data.referrer === 'string' ? data.referrer.slice(0,500) : '', params: landing(data)});
         const time = Date.now();
         db.prepare('INSERT INTO leads(id,name,business,phone,model,code,channel,quote,version,created) VALUES(?,?,?,?,?,?,?,?,?,?)')
           .run(data.id,data.name.trim(),data.business.trim(),data.phone.trim(),data.model,code,channel,JSON.stringify(result),current.version,time);
@@ -257,6 +273,16 @@ const server = createServer(async (req, res) => {
       });
       return json(res,200,{code:link.code, slug:slug || null});
     }
+    // Live updates: the admin page polls this tiny stamp and re-renders when it changes.
+    // Every visit, lead, copy and share writes an event row, so the newest event id is the stamp (scoped for staff).
+    if (method === 'GET' && path === '/api/admin/pulse') {
+      const row = isAdmin
+        ? db.prepare('SELECT COALESCE(MAX(id),0) AS id FROM events').get()
+        : db.prepare('SELECT COALESCE(MAX(e.id),0) AS id FROM events e JOIN links l ON l.code=e.code WHERE l.user_id=?').get(user.id);
+      return json(res,200,{stamp:String(row.id)});
+    }
+    // Staff only see their share link and their own progress numbers; customer contact details are admin-only.
+    if (path === '/api/admin/leads' && !isAdmin) fail(403,'Danh sách yêu cầu báo giá chỉ dành cho quản trị.');
     if (method === 'GET' && path === '/api/admin/leads') {
       const scope = isAdmin ? null : user.id;
       const page = Math.min(100000,Math.max(1, parseInt(url.searchParams.get('page'),10) || 1));
@@ -316,7 +342,7 @@ const server = createServer(async (req, res) => {
       if (!result.changes) fail(404,'Không tìm thấy link.');
       return json(res,200,{});
     }
-    if (method === 'GET' && path === '/api/admin/catalog') return json(res,200,catalog('draft'));
+    if (method === 'GET' && path === '/api/admin/catalog') return (draft => json(res,200,{...draft, terms: termsOf(draft)}))(catalog('draft'));
     if (method === 'PUT' && path === '/api/admin/catalog') {
       const data = await body(req);
       const cleaned = cleanDraft(data);

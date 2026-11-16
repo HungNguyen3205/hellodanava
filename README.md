@@ -33,6 +33,12 @@ Giá mẫu 12 tháng theo ảnh tham chiếu. Kỳ hạn 6 và 24 tháng của c
 
 Nguồn được ghi nhận theo nhân viên sở hữu link và kênh nhận diện ở từng lượt bấm (xem mục Link nhân viên đa kênh). Khách truy cập được ước tính bằng cookie trình duyệt. Số thao tác sao chép và chia sẻ chỉ ghi nhận trong cổng nội bộ.
 
+Chống đội số lượt truy cập:
+- Cùng một trình duyệt mở lại cùng một link trong 30 phút chỉ tính 1 lượt, kể cả tải lại nhiều lần.
+- Trình duyệt đang đăng nhập Cổng Sales (nhân viên hoặc admin) mở trang báo giá thì không được tính.
+- Cùng một IP công khai mở cùng một link trong 30 phút chỉ tính 1 lượt, để chặn kiểu dùng cửa sổ ẩn danh. Hệ thống chỉ lưu IP ở dạng đã mã hóa một chiều.
+- Lớp kiểm tra IP chỉ hoạt động khi server thấy IP thật của khách, vì vậy chạy sau reverse proxy cần đặt `TRUST_PROXY=1`.
+
 ## Chạy tại hellodanava.vn
 
 Triển khai trên cPanel (hello.danava.vn): làm theo [DEPLOY-CPANEL.md](DEPLOY-CPANEL.md). File khởi động trên hosting là `app.cjs`.

@@ -209,13 +209,12 @@ describe('Scope D: RBAC & IDOR', () => {
       assert.ok(dataAdmin.links.some(l => l.code === staffBLinkCode));
     });
 
-    it('isolates leads: Staff A only sees their own leads, not Staff B leads', async () => {
+    it('isolates leads: staff cannot list customer leads; admin filter per employee keeps them apart', async () => {
+      // Rule: staff only see their share link and progress numbers, never the customer list.
       const resA = await fetch(`${server.baseUrl}/api/admin/leads`, { headers: { 'Cookie': staffACookie } });
-      assert.equal(resA.status, 200);
+      assert.equal(resA.status, 403);
       const dataA = await resA.json();
-
-      assert.ok(dataA.items.some(lead => lead.id === staffALeadId), 'Staff A should see their lead');
-      assert.ok(!dataA.items.some(lead => lead.id === staffBLeadId), 'Staff A must NOT see Staff B lead');
+      assert.equal(dataA.items, undefined, 'no lead data in a 403 response');
 
       // Admin sees both
       const resAdmin = await fetch(`${server.baseUrl}/api/admin/leads`, { headers: { 'Cookie': adminCookie } });
@@ -305,15 +304,13 @@ describe('Scope D: RBAC & IDOR', () => {
   });
 
   describe('IDOR Testing', () => {
-    it('prevents Staff A from patching Staff B lead status (returns 404)', async () => {
+    it('prevents Staff A from patching any lead status (returns 403)', async () => {
       const res = await fetch(`${server.baseUrl}/api/admin/leads`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Cookie': staffACookie },
         body: JSON.stringify({ id: staffBLeadId, status: 'Đang tư vấn' })
       });
-      assert.equal(res.status, 404);
-      const json = await res.json();
-      assert.equal(json.error, 'Không tìm thấy yêu cầu.');
+      assert.equal(res.status, 403);
 
       // Verify Staff B lead status remains 'Mới'
       const leadB = db.prepare('SELECT status FROM leads WHERE id=?').get(staffBLeadId);

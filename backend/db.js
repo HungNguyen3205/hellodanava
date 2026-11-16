@@ -21,11 +21,16 @@ db.exec(`
     code TEXT REFERENCES links(code), channel TEXT NOT NULL, plan TEXT, created INTEGER NOT NULL);
   CREATE INDEX IF NOT EXISTS events_created ON events(created);
   CREATE INDEX IF NOT EXISTS events_interest ON events(visitor,code,plan,created);
+  CREATE INDEX IF NOT EXISTS events_code ON events(code,id);
   CREATE TABLE IF NOT EXISTS leads (id TEXT PRIMARY KEY, name TEXT NOT NULL, business TEXT NOT NULL,
     phone TEXT NOT NULL, model TEXT NOT NULL, code TEXT REFERENCES links(code), channel TEXT NOT NULL,
     quote TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'Mới', created INTEGER NOT NULL);
 `);
 // Friendly link name chosen by staff (e.g. "006", "nam-zalo"). Stats stay keyed on the internal code.
+// One-way hash of the visitor IP, used only to stop the same person inflating views (never the raw IP).
+if (!db.prepare("SELECT 1 FROM pragma_table_info('events') WHERE name='ip'").get())
+  db.exec('ALTER TABLE events ADD COLUMN ip TEXT');
+db.exec('CREATE INDEX IF NOT EXISTS events_recent ON events(code,created)');
 if (!db.prepare("SELECT 1 FROM pragma_table_info('links') WHERE name='slug'").get())
   db.exec('ALTER TABLE links ADD COLUMN slug TEXT');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS links_slug ON links(slug)');

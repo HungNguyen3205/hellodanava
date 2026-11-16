@@ -43,7 +43,8 @@ const sourceAliases = {
   TikTok: /^(tiktok|tt|tiktok\.com)$/,
   YouTube: /^(youtube|yt|youtube\.com|youtu\.be)$/,
   Zalo: /^(zalo|zalo\.me)$/,
-  Google: /^(google|gg|google\.com)$/
+  Google: /^(google|gg|google\.com)$/,
+  QR: /^(qr|qrcode|qr-code|qr_code)$/
 };
 
 /** A deliberate tag on the link itself: ?utm_source=tiktok, or the zarsrc marker Zalo adds to links it opens. */
@@ -65,11 +66,18 @@ export function clickIdChannel(params) {
   return null;
 }
 
-/** Channel recorded for a visit/lead. `link` is the resolved staff link (or undefined). */
-export function resolveChannel({ link, viaKey, userAgent, referrer }) {
+/**
+ * Channel recorded for a visit/lead. `link` is the resolved staff link (or undefined).
+ * `params` are the query parameters of the landing URL (hello.danava.vn/?ref=006&utm_source=tiktok),
+ * so the standard ?ref= link is as precise as the /r/ short link.
+ * Trust order: tag on the link > channel remembered from a /r/ click > in-app browser / referrer > platform click id.
+ */
+export function resolveChannel({ link, viaKey, userAgent, referrer, params = new URLSearchParams() }) {
+  const tagged = taggedChannel(params);
   const detected = detectChannel(userAgent, referrer);
-  if (!link) return detected || 'Trực tiếp';
+  const clickId = clickIdChannel(params);
+  if (!link) return tagged || detected || clickId || 'Trực tiếp';
   const via = channelKeys[viaKey];
   const legacy = channels.includes(link.channel) ? link.channel : null;
-  return via || detected || legacy || 'Khác';
+  return tagged || via || detected || clickId || legacy || 'Khác';
 }

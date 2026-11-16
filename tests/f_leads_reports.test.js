@@ -189,7 +189,8 @@ describe('Scope F: Leads & Reports', () => {
       const rep = await res.json();
 
       // Total kinds
-      assert.equal(rep.kinds.view, 3, 'Total views should be 3');
+      // Visitor 1 opened the page twice within 30 minutes: counted once (anti-reload inflation).
+      assert.equal(rep.kinds.view, 2, 'Total views should be 2 (visitor 1 reload not counted)');
       assert.equal(rep.kinds.interaction, 1, 'Total interactions should be 1');
       assert.equal(rep.kinds.lead, 1, 'Total leads should be 1');
 
@@ -203,7 +204,7 @@ describe('Scope F: Leads & Reports', () => {
       // Channel breakdown: all direct ('Trực tiếp')
       const directSource = rep.sources.find(s => s.channel === 'Trực tiếp');
       assert.ok(directSource);
-      assert.equal(directSource.views, 3);
+      assert.equal(directSource.views, 2);
       assert.equal(directSource.leads, 1);
     });
   });

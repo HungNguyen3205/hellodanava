@@ -228,7 +228,7 @@ describe('Handover Scope A-D: Friendly Link Slugs Comprehensive Suite', () => {
       assert.equal(afterCount, beforeCount, 'Bot visits via slug must not be recorded');
     });
 
-    it('counts repeated views from same visitor as multiple views but 1 unique visitor in report', async () => {
+    it('does not count reloads: repeated views from the same visitor within 30 minutes count once', async () => {
       db.prepare('DELETE FROM events').run();
       const visitorId = randomUUID();
 
@@ -245,7 +245,7 @@ describe('Handover Scope A-D: Friendly Link Slugs Comprehensive Suite', () => {
       assert.equal(repRes.status, 200);
       const rep = await repRes.json();
 
-      assert.equal(rep.kinds.view, 3, 'Total views should be 3');
+      assert.equal(rep.kinds.view, 1, '3 reloads within 30 minutes count as 1 view');
       assert.equal(rep.visitors, 1, 'Unique visitors should be 1');
     });
 
@@ -260,7 +260,7 @@ describe('Handover Scope A-D: Friendly Link Slugs Comprehensive Suite', () => {
 
       // Admin queries Staff A
       const repA = await (await api(adminCookie, `/admin/reports?days=7&employee=${staffAId}`)).json();
-      assert.equal(repA.kinds.view, 3);
+      assert.equal(repA.kinds.view, 1);
 
       // Admin queries Staff B
       const repB = await (await api(adminCookie, `/admin/reports?days=7&employee=${staffBId}`)).json();
@@ -340,17 +340,15 @@ describe('Handover Scope A-D: Friendly Link Slugs Comprehensive Suite', () => {
       assert.equal(lead.link, linkBCode, 'Fallback to internal code when slug is null');
     });
 
-    it('ensures Staff B cannot see or modify Staff A lead', async () => {
-      // Staff B list leads
-      const { items: staffBItems } = await (await api(staffBCookie, '/admin/leads')).json();
-      assert.ok(!staffBItems.some(i => i.id === leadIdA), 'Staff B must not see Staff A lead');
-
-      // Staff B tries to patch Staff A lead status
-      const patchRes = await api(staffBCookie, '/admin/leads', 'PATCH', {
-        id: leadIdA,
-        status: 'Đang tư vấn'
-      });
-      assert.equal(patchRes.status, 404);
+    it('ensures Staff B cannot see or modify Staff A lead (staff have no lead list at all)', async () => {
+      // Rule: staff only see their share link and progress numbers; the customer list is admin-only.
+      assert.equal((await api(staffBCookie, '/admin/leads')).status, 403);
+      const patchRes = await api(staffBCookie, '/admin/leads', 'PATCH', { id: leadIdA, status: 'Đang tư vấn' });
+      assert.equal(patchRes.status, 403);
+      // Staff B still sees progress numbers, but only their own rows: nothing attributed to Staff A.
+      const reportB = await (await api(staffBCookie, '/admin/reports?days=7')).json();
+      assert.ok(reportB.staff.every(r => r.id === staffBId), 'report rows belong to Staff B only');
+      assert.ok(!reportB.staff.some(r => r.id === staffAId));
     });
 
     it('records lead as "Trực tiếp" when ref is invalid or link is deactivated', async () => {

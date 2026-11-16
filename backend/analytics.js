@@ -7,9 +7,9 @@ export const events = db.prepare(
 export const leadStatuses = ['Mới', 'Đang tư vấn', 'Đã chốt', 'Đã đóng'];
 
 export function attribution(code) {
-  return typeof code === 'string'
-    ? db.prepare('SELECT l.code,l.slug,l.channel FROM links l JOIN users u ON u.id=l.user_id WHERE (l.code=? OR l.slug=?) AND l.active=1 AND u.active=1').get(code, code)
-    : undefined;
+  if (typeof code !== 'string' || !code.trim()) return undefined;
+  const key = code.trim().toLowerCase(); // ?ref=NAM-ZALO and ?ref=nam-zalo are the same link
+  return db.prepare('SELECT l.code,l.slug,l.channel FROM links l JOIN users u ON u.id=l.user_id WHERE (l.code=? OR l.slug=?) AND l.active=1 AND u.active=1').get(key, key);
 }
 
 export function report(query, user) {

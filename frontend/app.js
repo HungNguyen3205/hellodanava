@@ -5,7 +5,7 @@ let requestId = crypto.randomUUID();
 const chosen = new Map();
 const ref = new URLSearchParams(location.search).get('ref');
 const sendEvent = (kind, planId = null) =>
-  api('/events',{method:'POST',body:{kind,ref,plan:planId,referrer:document.referrer}}).catch(() => {});
+  api('/events',{method:'POST',body:{kind,ref,plan:planId,referrer:document.referrer,query:location.search}}).catch(() => {});
 
 // Landing page: in-page links scroll smoothly without adding "#section" to the URL.
 if (location.hash) history.replaceState(null, '', location.pathname + location.search);
@@ -42,7 +42,7 @@ function render() {
       ${p.featured?'<span class="badge">Gói nổi bật</span>':''}
       <h3>${e(p.name)}</h3><p class="desc">${e(p.description)}</p>
       <p class="price">${value === 0 ? 'Miễn phí' : money(value)}</p>
-      <p class="period">${value > 0 ? `/${term} tháng · ≈ ${money(Math.round(value/term))}/tháng` : '&nbsp;'}</p>
+      <p class="period">${value > 0 ? (term === 1 ? '/tháng' : `/${term} tháng · ≈ ${money(Math.round(value/term))}/tháng`) : '&nbsp;'}</p>
       <dl><div><dt>Hội viên</dt><dd>${e(p.members)}</dd></div><div><dt>Nhân sự</dt><dd>${e(p.staff)}</dd></div>
       <div><dt>Chi nhánh</dt><dd>${e(p.branches)}</dd></div></dl>
       <ul>${included.slice(0,4).map(m=>`<li>${e(m.name)}</li>`).join('')}</ul>
@@ -182,7 +182,7 @@ $('#lead').addEventListener('submit', async ev=>{
   status.textContent = 'Đang gửi…';
   try {
     await api('/leads',{method:'POST',body:{...Object.fromEntries(new FormData(ev.target)),id:requestId,plan,term,model,
-      extras:[...chosen].map(([id,quantity])=>({id,quantity})),ref,referrer:document.referrer,version:catalog.version}});
+      extras:[...chosen].map(([id,quantity])=>({id,quantity})),ref,referrer:document.referrer,query:location.search,version:catalog.version}});
     status.textContent = 'Đã gửi yêu cầu. DANAVA sẽ liên hệ theo số điện thoại anh/chị cung cấp.';
     ev.target.reset();
     requestId = crypto.randomUUID();
@@ -191,6 +191,7 @@ $('#lead').addEventListener('submit', async ev=>{
 });
 try {
   catalog = await api('/catalog');
+  if (!catalog.terms.includes(term)) term = catalog.terms[0];
   model = catalog.models[0];
   plan = catalog.plans.find(p=>p.featured)?.id || catalog.plans[0].id;
   render();
