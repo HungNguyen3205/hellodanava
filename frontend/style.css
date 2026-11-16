@@ -585,3 +585,21 @@ button.state-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow-
   .module-meta { grid-template-columns: 1fr; }
   .term-add input:not([type=checkbox]) { width: 140px; }
 }
+
+/* ---------- Popup (dialog) ---------- */
+.modal { width: min(460px, calc(100% - 32px)); padding: 30px 28px 24px; border: 0; border-radius: 26px; background: var(--card); color: var(--text); box-shadow: var(--shadow-lg); text-align: center; }
+.modal::backdrop { background: #18234f66; backdrop-filter: blur(3px); }
+.modal[open] { animation: modal-in .28s var(--spring); }
+@keyframes modal-in { from { opacity: 0; transform: translateY(12px) scale(.96); } }
+.modal-icon { display: grid; place-items: center; width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; background: var(--amber-soft); color: var(--orange); font-size: 1.6rem; font-weight: 800; }
+.modal h2 { margin: 0 0 8px; font-size: 1.35rem; }
+.modal p { margin: 0 0 14px; font-size: .94rem; line-height: 1.55; }
+.modal-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--bg); text-align: left; }
+.modal-link span { font-weight: 700; color: var(--blue); overflow-wrap: anywhere; }
+.modal-link em { flex: 0 0 auto; padding: 3px 10px; border-radius: var(--pill); font-style: normal; font-size: .76rem; font-weight: 700; }
+.modal-link em.on { background: var(--green-soft); color: var(--green); }
+.modal-link em.off { background: #fdecec; color: var(--red-text); }
+.modal-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
+.modal-actions .primary { min-height: 44px; padding: 10px 20px; }
+tr.flash > * { animation: row-flash 2.2s ease-out; }
+@keyframes row-flash { 0%, 35% { background: var(--amber-soft); } 100% { background: transparent; } }

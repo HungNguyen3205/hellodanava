@@ -144,6 +144,50 @@ function channelMatrix(data) {
     }).join('')}<td class="mx-cell"><b>${total}</b> lượt<small>${leads} yêu cầu</small></td></tr>`;
   }).join('')+'</tbody>')}</section>`;
 }
+// The one multi-channel link a staff member can have ("Đa kênh").
+const sharedLinkOf = employeeId => links?.find(item=>item.user_id===employeeId && item.channel==='Đa kênh');
+// Popup shown when admin tries to create a second link for the same staff member.
+function linkExistsPopup(link) {
+  let dialog=$('#link-exists');
+  if (!dialog) {
+    document.body.insertAdjacentHTML('beforeend','<dialog id="link-exists" class="modal" aria-labelledby="link-exists-title"></dialog>');
+    dialog=$('#link-exists');
+    dialog.addEventListener('click',async ev=>{
+      if (ev.target===dialog) return dialog.close();              // click on the backdrop
+      const button=ev.target.closest('[data-modal]');
+      if (!button) return;
+      if (button.dataset.modal==='close') dialog.close();
+      if (button.dataset.modal==='copy') {
+        await navigator.clipboard.writeText(location.origin+button.dataset.path).catch(()=>{});
+        button.textContent='✓ Đã sao chép';
+      }
+      if (button.dataset.modal==='show') {
+        dialog.close();
+        const row=content.querySelector(`tr[data-code="${CSS.escape(button.dataset.code)}"]`);
+        if (row) {
+          const search=$('#link-search');
+          if (search?.value) { search.value=''; content.querySelectorAll('tr[data-search]').forEach(item=>{item.hidden=false;}); }
+          row.scrollIntoView({behavior:'smooth',block:'center'});
+          row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
+        }
+      }
+    });
+  }
+  const path=refPath(link);
+  dialog.innerHTML=`<div class="modal-icon" aria-hidden="true">!</div>
+    <h2 id="link-exists-title">Nhân viên này đã có link</h2>
+    <p><b>${e(staffName(link.user_id))}</b> đã được cấp link chia sẻ. Mỗi nhân viên chỉ có 1 link dùng chung cho mọi mạng xã hội, không cần tạo thêm.</p>
+    <div class="modal-link"><span>${e(location.host+path)}</span>
+      <em class="${link.active?'on':'off'}">${link.active?'Đang bật':'Đang tắt'}</em></div>
+    ${link.active?'':'<p class="muted">Link đang tắt. Bấm "Xem trong danh sách" rồi chọn <b>Bật</b> để dùng lại.</p>'}
+    <div class="modal-actions">
+      <button type="button" class="primary" data-modal="copy" data-path="${e(path)}">Sao chép link</button>
+      <button type="button" class="small-button" data-modal="show" data-code="${e(link.code)}">Xem trong danh sách</button>
+      <button type="button" class="small-button" data-modal="close">Đóng</button>
+    </div>`;
+  dialog.showModal();
+  $('[data-modal=copy]',dialog).focus();
+}
 function renderLinks() {
   content.innerHTML=`<h2>Link nhân viên</h2>
   ${isAdmin()? `<div class="report-grid">
@@ -152,7 +196,7 @@ function renderLinks() {
   <label>Mật khẩu ban đầu<input type="password" name="password" minlength="12" maxlength="128" required autocomplete="new-password"></label>
   <button class="primary">Tạo nhân viên</button></form>
   <form data-form="link" class="panel"><h3>Cấp link cho nhân viên</h3>
-  <label>Nhân viên<select name="employee">${staff.filter(item=>item.active).map(item=>option(item.id,item.name)).join('')}</select></label>
+  <label>Nhân viên<select name="employee">${staff.filter(item=>item.active).map(item=>option(item.id,item.name+(sharedLinkOf(item.id)?' · đã có link':''))).join('')}</select></label>
   <p class="muted">Mỗi nhân viên 1 link dùng chung cho mọi mạng xã hội. Hệ thống tự nhận biết khách đến từ Zalo, Facebook, Messenger, TikTok, Instagram, Threads, YouTube hay Google; nguồn còn lại ghi là Khác. Với mã QR hoặc tờ rơi, dùng nút <b>Link QR</b> để thống kê đúng kênh QR.</p>
   <button class="primary">Tạo link</button></form></div>`:''}
   <div class="link-tools"><label class="link-search">Tìm link<input id="link-search" type="search" placeholder="Gõ mã (VD: 006), tên nhân viên hoặc kênh" autocomplete="off"></label>
@@ -160,7 +204,7 @@ function renderLinks() {
   ${wrapTable(head(['Nhân viên','Kênh','Link','Trạng thái','Thao tác'])+'<tbody>'+
     (links.map(item=>{
       const path=refPath(item);
-      return `<tr data-search="${e([staffName(item.user_id),item.channel,item.slug,item.code].join(' ').toLowerCase())}"><th scope="row">${e(staffName(item.user_id))}</th><td>${item.channel==='Đa kênh'?'Tất cả mạng xã hội':e(item.channel)}</td>
+      return `<tr data-code="${e(item.code)}" data-search="${e([staffName(item.user_id),item.channel,item.slug,item.code].join(' ').toLowerCase())}"><th scope="row">${e(staffName(item.user_id))}</th><td>${item.channel==='Đa kênh'?'Tất cả mạng xã hội':e(item.channel)}</td>
     <td><a class="link-path" href="${e(path)}" target="_blank" rel="noopener">${e(location.host+path)}</a>
     <form data-form="slug" data-code="${e(item.code)}" class="slug-form"><input name="slug" value="${e(item.slug||'')}" maxlength="40" placeholder="Đặt mã, VD: 006" aria-label="Mã dễ nhớ cho link ${e(staffName(item.user_id))} · ${e(item.channel)}"><button class="small-button">Lưu mã</button></form></td>
     <td>${item.active?'Đang bật':'Đã tắt'}</td>
@@ -454,6 +498,10 @@ content.addEventListener('submit',async ev=>{
   if (form.dataset.form==='term') { addTerm(new FormData(form).get('months')); return; }
   const button=$('button',form);
   const data=fields(form);
+  if (form.dataset.form==='link') {
+    const existing=sharedLinkOf(Number(data.employee));
+    if (existing) return linkExistsPopup(existing);
+  }
   button.disabled=true;
   try {
     if (form.dataset.form==='employee') await api('/admin/users',task('POST',data));
@@ -463,7 +511,14 @@ content.addEventListener('submit',async ev=>{
     form.reset();
     if (form.dataset.form!=='password') await render();
     notice('Đã lưu.');
-  } catch(error) {errorNotice(error);}
+  } catch(error) {
+    if (form.dataset.form==='link' && error.status===409) {
+      await loadLinks();
+      const existing=sharedLinkOf(Number(data.employee));
+      if (existing) { renderLinks(); return linkExistsPopup(existing); }
+    }
+    errorNotice(error);
+  }
   finally {button.disabled=false;}
 });
 addEventListener('beforeunload',ev=>{if(dirty){ev.preventDefault();ev.returnValue='';}});
