@@ -1,5 +1,5 @@
 export const terms = [6, 12, 24];
-export const channels = ['Zalo', 'Facebook', 'Messenger', 'TikTok', 'Instagram', 'Google', 'QR', 'Khác'];
+export const channels = ['Zalo', 'Facebook', 'Messenger', 'TikTok', 'Instagram', 'Threads', 'YouTube', 'Google', 'QR', 'Khác'];
 // A staff link that is not tied to one network; the visit's network is detected per click.
 export const ANY_CHANNEL = 'Đa kênh';
 export const models = ['Gym', 'Yoga', 'Pilates', 'Bể bơi', 'Spa'];

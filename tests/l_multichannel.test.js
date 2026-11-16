@@ -2,7 +2,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { startServer } from './helpers/server_helper.js';
-import { detectChannel } from '../backend/channel.js';
+import { detectChannel, taggedChannel, clickIdChannel } from '../backend/channel.js';
 
 const UA = {
   zalo: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Zalo iOS/23.10',
@@ -25,6 +25,37 @@ describe('detectChannel()', () => {
     assert.equal(detectChannel(UA.chrome, 'https://chat.zalo.me/'), 'Zalo');
     assert.equal(detectChannel(UA.chrome, ''), null);
     assert.equal(detectChannel(UA.chrome, 'https://notfacebook.com.evil.io/'), null);
+  });
+
+  it('recognises Threads, YouTube and the Google app, and leaves other sites as unknown', () => {
+    const threadsUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 Barcelona 289.0.0.77.109 Instagram 289.0';
+    assert.equal(detectChannel(threadsUA), 'Threads');
+    assert.equal(detectChannel(UA.chrome, 'https://l.threads.net/?u=x'), 'Threads');
+    assert.equal(detectChannel(UA.chrome, 'https://www.threads.com/@danava'), 'Threads');
+    assert.equal(detectChannel(UA.chrome, 'android-app://com.instagram.barcelona/'), 'Threads');
+    assert.equal(detectChannel(UA.chrome, 'https://www.youtube.com/'), 'YouTube');
+    assert.equal(detectChannel(UA.chrome, 'https://m.youtube.com/watch?v=x'), 'YouTube');
+    assert.equal(detectChannel(UA.chrome, 'https://youtu.be/x'), 'YouTube');
+    assert.equal(detectChannel(UA.chrome, 'android-app://com.google.android.youtube/'), 'YouTube');
+    assert.equal(detectChannel(UA.chrome, 'android-app://com.facebook.katana/'), 'Facebook');
+    assert.equal(detectChannel(UA.chrome, 'android-app://com.zhiliaoapp.musically/'), 'TikTok');
+    assert.equal(detectChannel('Mozilla/5.0 (iPhone) Mobile/15E148 GSA/300.0.1 Safari/604.1'), 'Google');
+    assert.equal(detectChannel(UA.chrome, 'https://www.google.com.vn/'), 'Google');
+    assert.equal(detectChannel(UA.chrome, 'https://www.linkedin.com/'), null);
+    assert.equal(detectChannel(UA.chrome, 'https://notyoutube.com/'), null);
+  });
+
+  it('reads utm_source tags and platform click ids', () => {
+    const q = s => new URLSearchParams(s);
+    assert.equal(taggedChannel(q('utm_source=TikTok')), 'TikTok');
+    assert.equal(taggedChannel(q('utm_source=ig')), 'Instagram');
+    assert.equal(taggedChannel(q('utm_source=threads.net')), 'Threads');
+    assert.equal(taggedChannel(q('zarsrc=31&utm_medium=zalo')), 'Zalo');
+    assert.equal(taggedChannel(q('utm_source=newsletter')), null);
+    assert.equal(clickIdChannel(q('fbclid=IwAR1')), 'Facebook');
+    assert.equal(clickIdChannel(q('ttclid=E.C.P')), 'TikTok');
+    assert.equal(clickIdChannel(q('gclid=Cj0')), 'Google');
+    assert.equal(clickIdChannel(q('x=1')), null);
   });
 });
 
@@ -105,6 +136,24 @@ describe('One link per staff, channel detected per visit', () => {
     assert.equal(row.channels.TikTok.leads, 1);
   });
 
+  it('the same link brings leads from Facebook and TikTok, and the lead list filters by network', async () => {
+    const { version } = await (await call(null, '/catalog')).json();
+    for (const [ua, phone] of [[UA.facebook, '0900000003'], [UA.tiktok, '0900000004']]) {
+      const { ref, cookie } = await click('/r/006', ua);
+      const res = await call(null, '/leads', 'POST', { id: randomUUID(), name: 'Khách', business: 'Gym ' + phone, phone,
+        model: 'Gym', plan: 'pro', term: 12, extras: [], version, ref }, { Cookie: cookie, 'User-Agent': ua });
+      assert.equal(res.status, 201);
+    }
+    const list = async (cookie, query) => (await (await call(cookie, '/admin/leads?' + query)).json()).items;
+    const fb = await list(admin, 'channel=Facebook');
+    assert.ok(fb.length >= 1 && fb.every(r => r.channel === 'Facebook'));
+    const tt = await list(admin, 'channel=TikTok');
+    assert.ok(tt.length >= 2 && tt.every(r => r.channel === 'TikTok'));
+    assert.ok((await list(admin, 'channel=TikTok&employee=' + staffId)).every(r => r.employee === 'Hưng'));
+    assert.equal((await list(staff, 'channel=Facebook')).length, fb.length, 'staff can filter their own leads');
+    assert.ok((await list(admin, 'channel=bogus')).length >= fb.length + tt.length, 'unknown channel is ignored');
+  });
+
   it('visits without a staff link still get a network, but no staff', async () => {
     await call(null, '/events', 'POST', { kind: 'view', referrer: 'https://m.facebook.com/' }, { Cookie: 'visitor=' + randomUUID(), 'User-Agent': UA.chrome });
     await call(null, '/events', 'POST', { kind: 'view' }, { Cookie: 'visitor=' + randomUUID(), 'User-Agent': UA.chrome });
@@ -112,11 +161,29 @@ describe('One link per staff, channel detected per visit', () => {
     const direct = Object.fromEntries(data.sources.map(s => [s.channel, s.views]));
     assert.ok(direct.Facebook >= 2, 'Facebook visit without ref is counted as a source');
     assert.equal(direct['Trực tiếp'], 1);
-    assert.equal(data.staff.find(r => r.id === staffId).views, 10);
+    assert.equal(data.staff.find(r => r.id === staffId).views, 12);
   });
 
   it('staff only see their own channel breakdown', async () => {
     const mine = await (await call(staff, '/admin/reports?days=7')).json();
     assert.deepEqual(mine.staffChannels.map(r => r.id), [staffId]);
+  });
+
+  it('the plain link still finds the network from click ids and utm tags', async () => {
+    const before = (await report()).staffChannels.find(r => r.id === staffId).channels;
+    const count = (cells, name) => cells[name]?.views || 0;
+    // Opened from Facebook in the phone's normal browser: no in-app signature, but fbclid is kept.
+    const fb = await click('/r/006?fbclid=IwAR0abc', UA.chrome);
+    assert.equal(fb.res.headers.get('set-cookie').split(';')[0], 'via=facebook');
+    await click('/r/006?ttclid=E.C.P.abc', UA.chrome);
+    // A deliberate tag beats the browser it was opened in.
+    await click('/r/006?utm_source=youtube', UA.facebook);
+    // The in-app browser is more precise than Meta's shared fbclid.
+    await click('/r/006?fbclid=IwAR0abc', UA.instagram);
+    const after = (await report()).staffChannels.find(r => r.id === staffId).channels;
+    assert.equal(count(after, 'Facebook') - count(before, 'Facebook'), 1);
+    assert.equal(count(after, 'TikTok') - count(before, 'TikTok'), 1);
+    assert.equal(count(after, 'YouTube') - count(before, 'YouTube'), 1);
+    assert.equal(count(after, 'Instagram') - count(before, 'Instagram'), 1);
   });
 });

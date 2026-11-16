@@ -4,6 +4,7 @@ let user, tab, staff, links, channels, catalog, published, dirty = false, page =
 const appGroups = ['Quản trị Studio','App hội viên','App riêng theo thương hiệu'];
 const tabs = {report:'Tổng quan',links:'Link nhân viên',leads:'Yêu cầu báo giá',catalog:'Gói & module',account:'Tài khoản'};
 const filters = {days:'30',employee:'',channel:'',plan:''};
+const leadFilters = {employee:'',channel:''};
 const task = (method,body) => ({method,body});
 const content = $('#content');
 const isAdmin = () => user?.role === 'admin';
@@ -68,8 +69,8 @@ async function render() {
     <label>Mật khẩu mới<input type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
     <button class="primary">Đổi mật khẩu</button></form>`;
 }
-function filter(name, label, options) {
-  return `<label>${label}<select data-filter="${name}">${options.map(([value,title])=>option(value,title,String(value)===filters[name])).join('')}</select></label>`;
+function filter(name, label, options, scope = filters, attr = 'filter') {
+  return `<label>${label}<select data-${attr}="${name}">${options.map(([value,title])=>option(value,title,String(value)===scope[name])).join('')}</select></label>`;
 }
 async function renderReport() {
   const data=await api('/admin/reports?'+new URLSearchParams(filters));
@@ -127,7 +128,7 @@ function renderLinks() {
   <button class="primary">Tạo nhân viên</button></form>
   <form data-form="link" class="panel"><h3>Cấp link cho nhân viên</h3>
   <label>Nhân viên<select name="employee">${staff.filter(item=>item.active).map(item=>option(item.id,item.name)).join('')}</select></label>
-  <p class="muted">Mỗi nhân viên 1 link dùng chung cho mọi mạng xã hội. Hệ thống tự nhận biết khách đến từ Zalo, Facebook, Messenger, TikTok, Instagram hay Google. Với mã QR hoặc tờ rơi, dùng nút <b>Link QR</b> để thống kê đúng kênh QR.</p>
+  <p class="muted">Mỗi nhân viên 1 link dùng chung cho mọi mạng xã hội. Hệ thống tự nhận biết khách đến từ Zalo, Facebook, Messenger, TikTok, Instagram, Threads, YouTube hay Google; nguồn còn lại ghi là Khác. Với mã QR hoặc tờ rơi, dùng nút <b>Link QR</b> để thống kê đúng kênh QR.</p>
   <button class="primary">Tạo link</button></form></div>`:''}
   <div class="link-tools"><label class="link-search">Tìm link<input id="link-search" type="search" placeholder="Gõ mã (VD: 006), tên nhân viên hoặc kênh" autocomplete="off"></label>
   <p class="muted">Đặt mã dễ nhớ cho link: chữ không dấu, số hoặc dấu gạch ngang, ví dụ <b>006</b> hay <b>nam-zalo</b>. Đổi mã thì link mã cũ ngừng hoạt động, nhưng số liệu đã ghi nhận vẫn giữ nguyên.</p></div>
@@ -150,9 +151,13 @@ function renderLinks() {
   ).join('')+'</tbody>')}`:''}`;
 }
 async function renderLeads() {
-  const {items, statuses, hasNext} = await api('/admin/leads?page='+page);
+  if (!channels) await loadLinks();
+  const {items, statuses, hasNext} = await api('/admin/leads?'+new URLSearchParams({...leadFilters, page}));
   if (tab!=='leads') return;
-  content.innerHTML=`<h2>Yêu cầu báo giá</h2>${wrapTable(head(['Khách hàng','Gói & dự toán','Nguồn','Thời gian','Trạng thái'])+'<tbody>'+
+  content.innerHTML=`<h2>Yêu cầu báo giá</h2><div class="filters">
+    ${filter('channel','Khách đến từ',[['','Tất cả kênh'],...['Trực tiếp',...channels].map(channel=>[channel,channel])],leadFilters,'lead-filter')}
+    ${isAdmin()?filter('employee','Nhân viên',[['','Tất cả'],...staff.map(item=>[item.id,item.name])],leadFilters,'lead-filter'):''}
+  </div>${wrapTable(head(['Khách hàng','Gói & dự toán','Nguồn','Thời gian','Trạng thái'])+'<tbody>'+
     (items.map(row=>`<tr><th scope="row">${e(row.business)}<small>${e(row.name)} · ${e(row.model)}</small>
       <a href="tel:${e(row.phone.replace(/[^+0-9]/g,''))}">${e(row.phone)}</a></th><td><details>
       <summary>${e(row.quote.plan)} · ${row.quote.term} tháng</summary><small>Giá gói ${money(row.quote.base)}</small>
@@ -321,6 +326,11 @@ content.addEventListener('change',async ev=>{
       renderCatalog();
       $('#app-filter').focus();
       return;
+    }
+    if (target.dataset.leadFilter) {
+      leadFilters[target.dataset.leadFilter]=target.value;
+      page=1;
+      await renderLeads();
     }
     if (target.dataset.filter) {
       filters[target.dataset.filter]=target.value;

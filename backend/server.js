@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { channelKeys, keyOf, detectChannel, resolveChannel } from './channel.js';
+import { channelKeys, keyOf, detectChannel, resolveChannel, taggedChannel, clickIdChannel } from './channel.js';
 import { db, bootstrap, catalog, hashPassword, matches } from './db.js';
 import { apps, channels, models, quote, states, terms, ANY_CHANNEL } from './catalog.js';
 import { attribution, events, leadStatuses, report } from './analytics.js';
@@ -143,7 +143,8 @@ const server = createServer(async (req, res) => {
     if (short) {
       const link = attribution(short[1]);
       const via = channelKeys[short[2]] ? short[2]
-        : keyOf(detectChannel(req.headers['user-agent'], req.headers.referer));
+        : keyOf(taggedChannel(url.searchParams) || detectChannel(req.headers['user-agent'], req.headers.referer)
+          || clickIdChannel(url.searchParams));
       const headers = {Location: link ? '/?ref='+encodeURIComponent(link.slug || link.code) : '/', 'Cache-Control':'no-store'};
       if (link) headers['Set-Cookie'] = via ? cookie('via', via, 86400) : cookie('via', '', 0);
       res.writeHead(302, headers);
@@ -258,9 +259,12 @@ const server = createServer(async (req, res) => {
     if (method === 'GET' && path === '/api/admin/leads') {
       const scope = isAdmin ? null : user.id;
       const page = Math.min(100000,Math.max(1, parseInt(url.searchParams.get('page'),10) || 1));
+      const employee = isAdmin ? Number(url.searchParams.get('employee')) || null : user.id;
+      const channel = [...channels, 'Trực tiếp'].includes(url.searchParams.get('channel')) ? url.searchParams.get('channel') : null;
       const rows = db.prepare(`SELECT a.*,u.name AS employee,COALESCE(l.slug,l.code) AS link FROM leads a LEFT JOIN links l ON l.code=a.code
-        LEFT JOIN users u ON l.user_id=u.id WHERE (? IS NULL OR l.user_id=?) ORDER BY a.created DESC,a.id DESC LIMIT 51 OFFSET ?`)
-        .all(scope,scope,(page-1)*50);
+        LEFT JOIN users u ON l.user_id=u.id WHERE (? IS NULL OR l.user_id=?) AND (? IS NULL OR a.channel=?)
+        ORDER BY a.created DESC,a.id DESC LIMIT 51 OFFSET ?`)
+        .all(employee,employee,channel,channel,(page-1)*50);
       return json(res,200,{items:rows.slice(0,50).map(row=>({...row,quote:JSON.parse(row.quote)})), hasNext:rows.length>50,statuses:leadStatuses});
     }
     if (method === 'PATCH' && path === '/api/admin/leads') {
