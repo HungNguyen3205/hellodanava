@@ -1,3 +1,5 @@
 # Not needed on the server: excluded from `git archive` (deploy zip)
 tests/ export-ignore
 .gitattributes export-ignore
+# Shell scripts run on the Linux host: always LF line endings
+*.sh text eol=lf

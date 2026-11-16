@@ -105,6 +105,9 @@ small { display: block; color: var(--muted); font-weight: 400; margin-top: 3px; 
 .nav a { text-decoration: none; font-weight: 500; }
 .nav nav a:not(.small-button) { color: var(--text); padding: 10px 16px; border-radius: var(--pill); transition: background .2s, color .2s; }
 .nav nav a:not(.small-button):hover { background: var(--blue-soft); color: var(--blue); }
+.nav nav a.nav-login { margin-left: 8px; padding: 8px 18px; border: 1.5px solid #c5cff0; color: var(--blue); font-weight: 600; white-space: nowrap; }
+.nav nav a.nav-login:hover { border-color: var(--blue); background: var(--blue-soft); }
+.top .small-button { margin-left: 4px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--blue); white-space: nowrap; font-weight: 800; font-size: 1.15rem; text-decoration: none; }
 .brand b { color: var(--orange); }
 .brand img { display: block; height: 40px; width: auto; }
@@ -427,7 +430,10 @@ td a[href^="tel:"] { display: inline-block; margin-top: 4px; font-weight: 600; t
   .wrap { width: calc(100% - 32px); }
   .home .pricing { padding-inline: 16px; }
   .nav { min-height: 62px; }
-  .nav nav a:not(.small-button) { display: none; }
+  .nav nav a:not(.small-button):not(.nav-login) { display: none; }
+  .nav nav a.nav-login { margin-left: 0; padding: 7px 12px; font-size: .88rem; }
+  .hide-sm { display: none; }
+  .nav nav { gap: 6px; }
   .brand img { height: 32px; }
   .brand-tag { display: none; }
   .top .small-button { padding: 8px 14px; font-size: .9rem; }

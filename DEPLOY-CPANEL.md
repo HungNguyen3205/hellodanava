@@ -4,12 +4,36 @@
 
 Trong hướng dẫn, `<user>` là tên tài khoản cPanel của bạn (xem góc phải cPanel hoặc đường dẫn `/home/<user>`).
 
+## Cách nhanh: Terminal của cPanel
+
+Điều kiện: tên miền `hello.danava.vn` đã được tạo trong **Domains**, và bản ghi DNS `hello` đã trỏ về IP của server cPanel.
+
+**Cài lần đầu.** Thay email và mật khẩu thật (12–128 ký tự). Không ghi mật khẩu vào repo:
+```bash
+cd ~ && git clone https://github.com/HungNguyen3205/hellodanava.git
+ADMIN_EMAIL='admin@danava.vn' ADMIN_PASSWORD='mat-khau-cua-ban' bash ~/hellodanava/deploy.sh
+```
+
+**Cập nhật bản mới** (sau khi code đã lên nhánh `main` trên GitHub):
+```bash
+bash ~/hellodanava/deploy.sh
+```
+
+Script tự làm các việc sau:
+- kiểm tra phiên bản Node;
+- kéo code mới về;
+- tạo app nếu chưa có, còn nếu đã có thì giữ nguyên cấu hình và dữ liệu, chỉ khởi động lại;
+- xin SSL nếu chưa có chứng chỉ;
+- kiểm tra trang qua `https://hello.danava.vn`.
+
+Các mục 0–4 bên dưới là cách làm tương đương trên giao diện cPanel.
+
 ## 0. Kiểm tra trước
 
 1. cPanel → **Setup Node.js App** → **Create Application** → mở danh sách **Node.js version**.
    - Cần **Node 24** (khuyến nghị) hoặc tối thiểu **22.13**. Dự án dùng SQLite có sẵn trong Node (`node:sqlite`).
    - Nếu danh sách chỉ có từ 22.12 trở xuống thì app **không chạy được**. Nhờ nhà cung cấp hosting bật Node 24 trước.
-2. Nên **gộp nhánh `feature/landing-3d-staff-links` vào `main`** trên GitHub trước khi triển khai.
+2. Server lấy code từ nhánh `main` trên GitHub.
 
 ## 1. Đưa code lên server (chọn một cách)
 
@@ -72,6 +96,7 @@ Bấm **Create**, rồi **Start App** (hoặc **Restart**).
 
 ## 5. Cập nhật phiên bản mới
 
+- **Nhanh nhất:** Terminal → `bash ~/hellodanava/deploy.sh`, tự kéo code và khởi động lại.
 - **Cách A (Git):** cPanel → **Git Version Control** → **Manage** → tab **Pull or Deploy** → **Update from Remote**.
 - **Cách B (zip):** upload và giải nén đè lên `/home/<user>/hellodanava`.
 

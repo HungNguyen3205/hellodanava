@@ -72,3 +72,20 @@ describe('Regression BUG-02: rate limit uses the proxy-appended client IP', () =
     } finally { await server.stop(); }
   });
 });
+
+describe('Regression: HEAD requests are answered like GET', () => {
+  it('pages, assets and the public API return 200 to HEAD with no body', async () => {
+    const server = await startServer({ port: 3987 });
+    try {
+      for (const path of ['/', '/admin', '/style.css', '/vendor/three.module.min.js', '/api/catalog']) {
+        const res = await fetch(server.baseUrl + path, { method: 'HEAD' });
+        assert.equal(res.status, 200, path);
+        assert.equal((await res.text()).length, 0, `${path} HEAD must not send a body`);
+      }
+      const short = await fetch(server.baseUrl + '/r/unknown', { method: 'HEAD', redirect: 'manual' });
+      assert.equal(short.status, 302);
+      const post = await fetch(server.baseUrl + '/api/leads', { method: 'HEAD' });
+      assert.equal(post.status, 404, 'POST-only endpoints stay closed to HEAD');
+    } finally { await server.stop(); }
+  });
+});

@@ -123,7 +123,8 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     const path = url.pathname;
-    const method = req.method;
+    // HEAD is answered like GET (Node drops the body); uptime monitors and link previews use it.
+    const method = req.method === 'HEAD' ? 'GET' : req.method;
     const ip = clientIp(req);
     const jar = cookies(req);
     const user = jar.session && session.get(tokenHash(jar.session), Date.now());
