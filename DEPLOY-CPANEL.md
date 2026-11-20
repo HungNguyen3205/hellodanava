@@ -4,6 +4,24 @@
 
 Trong hướng dẫn, `<user>` là tên tài khoản cPanel của bạn (xem góc phải cPanel hoặc đường dẫn `/home/<user>`).
 
+## Thông tin server (cho cả nhóm)
+
+| Mục | Giá trị |
+|---|---|
+| Tên miền | `https://hello.danava.vn` (quản trị: `/admin`) |
+| Hosting | cPanel, **Setup Node.js App** (CloudLinux / Passenger), Node 24 |
+| Thư mục code trên server | `/home/<user>/hellodanava` (clone từ GitHub, nhánh `main`) |
+| Thư mục dữ liệu | `/home/<user>/hellodanava-data` (SQLite, **không** nằm trong git) |
+| File khởi động | `app.cjs` |
+| Biến môi trường | `DATA_DIR`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SECURE_COOKIES=1` (đặt trong Setup Node.js App, không ghi vào repo) |
+| Log lỗi | `/home/<user>/hellodanava/stderr.log` |
+
+Repo GitHub (giữ hai repo luôn giống nhau, cùng nhánh `main`):
+- Tổ chức: `https://github.com/danava-org/DANAVA_Hello.git`
+- Cá nhân (server đang kéo code từ đây): `https://github.com/HungNguyen3205/hellodanava.git`
+
+Tài khoản cPanel, mật khẩu admin và dữ liệu khách **không** lưu trong repo. Xin người quản lý server cấp riêng.
+
 ## Cách nhanh: Terminal của cPanel
 
 Điều kiện: tên miền `hello.danava.vn` đã được tạo trong **Domains**, và bản ghi DNS `hello` đã trỏ về IP của server cPanel.
@@ -97,6 +115,7 @@ Bấm **Create**, rồi **Start App** (hoặc **Restart**).
 ## 5. Cập nhật phiên bản mới
 
 - **Nhanh nhất:** Terminal → `bash ~/hellodanava/deploy.sh`, tự kéo code và khởi động lại.
+- Nếu `deploy.sh` trên server là bản cũ, kéo code trước rồi chạy: `cd ~/hellodanava && git pull --ff-only && bash deploy.sh`.
 - **Cách A (Git):** cPanel → **Git Version Control** → **Manage** → tab **Pull or Deploy** → **Update from Remote**.
 - **Cách B (zip):** upload và giải nén đè lên `/home/<user>/hellodanava`.
 

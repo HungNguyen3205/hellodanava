@@ -12,7 +12,8 @@ set -u
 APP="${APP:-hellodanava}"
 DOMAIN="${DOMAIN:-hello.danava.vn}"
 DATA="${DATA_DIR:-$HOME/hellodanava-data}"
-REPO="https://github.com/HungNguyen3205/hellodanava.git"
+# Mirror: https://github.com/danava-org/DANAVA_Hello.git (kept identical). Override with REPO=... for a fresh clone.
+REPO="${REPO:-https://github.com/HungNguyen3205/hellodanava.git}"
 
 step() { printf '\n== %s ==\n' "$*"; }
 fail() { printf 'LOI: %s\n' "$*"; exit 1; }

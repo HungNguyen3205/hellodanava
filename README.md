@@ -39,6 +39,19 @@ Chống đội số lượt truy cập:
 - Cùng một IP công khai mở cùng một link trong 30 phút chỉ tính 1 lượt, để chặn kiểu dùng cửa sổ ẩn danh. Hệ thống chỉ lưu IP ở dạng đã mã hóa một chiều.
 - Lớp kiểm tra IP chỉ hoạt động khi server thấy IP thật của khách, vì vậy chạy sau reverse proxy cần đặt `TRUST_PROXY=1`.
 
+## Làm chung dự án
+
+- Repo chính của tổ chức: `https://github.com/danava-org/DANAVA_Hello.git`. Bản sao cá nhân `https://github.com/HungNguyen3205/hellodanava.git` là nơi server đang kéo code, nên hai repo phải luôn giống nhau.
+- Cách lấy code: `git clone https://github.com/danava-org/DANAVA_Hello.git hellodanava`, rồi `npm run dev`.
+- Quy trình: tạo nhánh riêng → commit → chạy `node --test "tests/*.test.js"` → mở Pull Request vào `main`. Code lên `main` mới được triển khai.
+- Người có quyền với cả hai repo đẩy `main` lên cả hai (một lần cấu hình, sau đó chỉ cần `git push`):
+  ```bash
+  git remote set-url --add --push origin https://github.com/danava-org/DANAVA_Hello.git
+  git remote set-url --add --push origin https://github.com/HungNguyen3205/hellodanava.git
+  ```
+- Triển khai lên server: SSH/Terminal cPanel → `bash ~/hellodanava/deploy.sh`. Thông tin server ở [DEPLOY-CPANEL.md](DEPLOY-CPANEL.md#thông-tin-server-cho-cả-nhóm).
+- Không commit `.env`, `data/`, file `*.local.md` hay bất kỳ mật khẩu nào: repo có thể công khai.
+
 ## Chạy tại hellodanava.vn
 
 Triển khai trên cPanel (hello.danava.vn): làm theo [DEPLOY-CPANEL.md](DEPLOY-CPANEL.md). File khởi động trên hosting là `app.cjs`.
